@@ -78,6 +78,7 @@ td.nm{font-family:'Sora',sans-serif;font-weight:500;font-size:12px}
 
 <div class="tabs">
   <button class="tab active" data-p="portfolio">Portfolio</button>
+  <button class="tab" data-p="live">Live Portfolio</button>
   <button class="tab" data-p="consensus">Consensus</button>
   <button class="tab" data-p="managers">Managers</button>
   <button class="tab" data-p="backtest">Backtest</button>
@@ -94,6 +95,32 @@ td.nm{font-family:'Sora',sans-serif;font-weight:500;font-size:12px}
     </div>
     <div class="tw"><div class="tw-title"><span>Enhanced Holdings — Consensus Weighted</span></div>
       <div style="overflow-x:auto"><table id="holdTable"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Weight</th><th>Consensus</th><th>Managers</th><th>Signals</th><th>Allocation</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- LIVE PORTFOLIO -->
+  <div class="panel" id="panel-live">
+    <div class="cards" id="live-cards"><div class="card"><div class="label">Loading...</div><div class="value" style="font-size:14px;color:var(--dim)">Connect Alpaca to see live data</div></div></div>
+    <div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="loadLive()">Refresh</button>
+      <button class="btn" style="background:var(--s2);color:var(--text);border:1px solid var(--border)" onclick="deployNow()">Deploy Now</button>
+      <button class="btn" style="background:var(--s2);color:var(--red);border:1px solid var(--red)" onclick="cancelAll()">Cancel All Orders</button>
+    </div>
+
+    <div class="tw">
+      <div class="tw-title"><span>Alpaca Positions — Live</span><span id="live-ts" style="font-size:11px;color:var(--dim)"></span></div>
+      <div style="overflow-x:auto">
+        <table id="liveTable"><thead><tr><th>Ticker</th><th>Shares</th><th>Market Value</th><th>Ownership %</th><th>Target %</th><th>Drift</th><th>Unrealized P&L</th></tr></thead>
+        <tbody><tr><td colspan="7" style="text-align:center;color:var(--dim);padding:36px">Switch to this tab to load live data</td></tr></tbody></table>
+      </div>
+    </div>
+
+    <div class="tw" style="margin-top:20px">
+      <div class="tw-title"><span>Recent Orders</span><span id="ord-summary" style="font-size:11px;color:var(--dim)"></span></div>
+      <div style="overflow-x:auto">
+        <table id="ordTable"><thead><tr><th>Symbol</th><th>Side</th><th>Amount</th><th>Filled</th><th>Status</th><th>Time</th></tr></thead>
+        <tbody><tr><td colspan="6" style="text-align:center;color:var(--dim);padding:36px">Loading...</td></tr></tbody></table>
+      </div>
     </div>
   </div>
 
@@ -136,6 +163,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   t.classList.add('active');document.getElementById('panel-'+t.dataset.p).classList.add('active');
+  if(t.dataset.p==='live')loadLive();
   if(t.dataset.p==='consensus')loadConsensus();
   if(t.dataset.p==='managers')loadManagers();
   if(t.dataset.p==='backtest')loadBacktest();
@@ -269,6 +297,109 @@ async function loadLayers(){
       <p>${l.description}</p>
     </div>
   `).join('')+`<div class="layer-card"><h4 style="color:var(--dim)">Excluded Tickers</h4><p>${d.excluded_tickers.join(', ')||'None'}</p></div>`;
+}
+
+// ── LIVE PORTFOLIO ──
+let liveTimer=null;
+async function loadLive(){
+  try{
+    const [status,positions,orders]=await Promise.all([
+      f(`${API}/api/trading/status`).catch(()=>null),
+      f(`${API}/api/trading/positions`).catch(()=>null),
+      f(`${API}/api/trading/orders`).catch(()=>null),
+    ]);
+    renderLiveCards(status);
+    renderLivePositions(status,positions);
+    renderOrders(orders);
+    document.getElementById('live-ts').textContent='Updated '+new Date().toLocaleTimeString();
+    clearTimeout(liveTimer);
+    if(document.getElementById('panel-live').classList.contains('active'))liveTimer=setTimeout(loadLive,30000);
+  }catch(e){document.getElementById('live-cards').innerHTML=`<div class="card"><div class="label">Error</div><div class="value neg" style="font-size:13px">${e.message}</div></div>`}
+}
+
+function renderLiveCards(s){
+  if(!s||!s.connected){
+    const ec=s?.env_check||{};
+    document.getElementById('live-cards').innerHTML=`
+      <div class="card"><div class="label">Connection</div><div class="value neg">Not Connected</div><div class="sub">${s?.reason||'API unreachable'}</div></div>
+      <div class="card"><div class="label">ALPACA_API_KEY</div><div class="value" style="font-size:15px">${ec.ALPACA_API_KEY?'<span class="pos">Set</span>':'<span class="neg">Missing</span>'}</div></div>
+      <div class="card"><div class="label">ALPACA_SECRET_KEY</div><div class="value" style="font-size:15px">${ec.ALPACA_SECRET_KEY?'<span class="pos">Set</span>':'<span class="neg">Missing</span>'}</div></div>
+      <div class="card"><div class="label">AUTO_TRADE</div><div class="value" style="font-size:15px">${ec.AUTO_TRADE==='true'?'<span class="pos">On</span>':'<span class="neg">Off</span>'}</div></div>`;
+    return;
+  }
+  const mc=s.mode==='paper'?'var(--orange)':'var(--green)';
+  document.getElementById('live-cards').innerHTML=`
+    <div class="card"><div class="label">Connection</div><div class="value pos">Connected</div><div class="sub"><span style="color:${mc}">${s.mode?.toUpperCase()}</span> · ${s.market_open?'<span class="pos">Market Open</span>':'<span class="neg">Market Closed</span>'}</div></div>
+    <div class="card"><div class="label">Portfolio Value</div><div class="value">${fC(s.equity)}</div><div class="sub">${s.positions_count} positions</div></div>
+    <div class="card"><div class="label">Buying Power</div><div class="value">${fC(s.buying_power)}</div></div>
+    <div class="card"><div class="label">Cash</div><div class="value">${fC(s.cash)}</div></div>`;
+}
+
+function renderLivePositions(status,positions){
+  const tbody=document.querySelector('#liveTable tbody');
+  if(!status?.connected){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:36px">Connect Alpaca to see live positions</td></tr>';return}
+
+  const posArr=positions?.positions||status?.positions||[];
+  if(!posArr.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:36px">No positions — click Deploy Now to buy the portfolio</td></tr>';return}
+
+  // Build target weight lookup from enhanced portfolio
+  const tw={};
+  if(portData?.allocations)portData.allocations.forEach(a=>{tw[a.ticker]=a.weight_pct/100});
+
+  // Calculate total portfolio value for ownership %
+  const totalMV=posArr.reduce((s,p)=>s+parseFloat(p.market_value||0),0);
+
+  tbody.innerHTML=posArr.map(p=>{
+    const sym=p.symbol;
+    const mv=parseFloat(p.market_value||0);
+    const ownershipPct=totalMV>0?(mv/totalMV*100):0;
+    const targetW=(tw[sym]||0)*100;
+    const drift=ownershipPct-targetW;
+    const upl=parseFloat(p.unrealized_pl||0);
+    return`<tr>
+      <td style="color:var(--cyan);font-weight:600">${sym}</td>
+      <td>${parseFloat(p.qty||0).toFixed(4)}</td>
+      <td>${fC(mv)}</td>
+      <td style="font-weight:600">${ownershipPct.toFixed(2)}%</td>
+      <td>${targetW.toFixed(2)}%</td>
+      <td class="${Math.abs(drift)>2?'neg':'pos'}">${drift>=0?'+':''}${drift.toFixed(2)}%</td>
+      <td class="${upl>=0?'pos':'neg'}">${upl>=0?'+':''}${fC(upl)}</td>
+    </tr>`}).join('');
+}
+
+function renderOrders(orders){
+  const tbody=document.querySelector('#ordTable tbody');
+  const sumEl=document.getElementById('ord-summary');
+  if(!orders){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:36px">Connect Alpaca to see orders</td></tr>';return}
+  sumEl.textContent=`${orders.counts?.filled||0} filled · ${orders.counts?.pending||0} pending · ${orders.counts?.cancelled||0} cancelled · ${orders.counts?.rejected||0} rejected`;
+  const all=[...(orders.pending||[]),...(orders.filled||[]),...(orders.cancelled||[]),...(orders.rejected||[]),...(orders.other||[])].slice(0,50);
+  if(!all.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:36px">No orders yet</td></tr>';return}
+  const sc={filled:'var(--green)',canceled:'var(--dim)',cancelled:'var(--dim)',rejected:'var(--red)',new:'var(--orange)',accepted:'var(--orange)',pending_new:'var(--orange)',partially_filled:'var(--blue)'};
+  tbody.innerHTML=all.map(o=>{
+    const t=o.submitted_at?new Date(o.submitted_at).toLocaleString():'—';
+    return`<tr>
+      <td style="color:var(--cyan);font-weight:600">${o.symbol}</td>
+      <td><span style="color:${o.side==='buy'?'var(--green)':'var(--red)'}">${o.side?.toUpperCase()}</span></td>
+      <td>${o.notional?fC(parseFloat(o.notional)):(o.qty||'—')}</td>
+      <td>${o.filled_qty||'0'}</td>
+      <td><span style="color:${sc[o.status]||'var(--dim)'};font-weight:600">${o.status?.toUpperCase()}</span></td>
+      <td style="color:var(--dim);font-size:10px">${t}</td>
+    </tr>`}).join('');
+}
+
+async function deployNow(){
+  if(!confirm('This will cancel open orders and deploy the enhanced portfolio. Continue?'))return;
+  try{
+    const r=await fetch(`${API}/api/trading/deploy-now`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});
+    const d=await r.json();
+    alert(d.error?`Error: ${d.error}`:`Deployed! ${d.executed?.length||0} orders placed, ${d.errors?.length||0} errors`);
+    setTimeout(loadLive,3000);
+  }catch(e){alert(`Deploy failed: ${e.message}`)}
+}
+
+async function cancelAll(){
+  if(!confirm('Cancel ALL open orders?'))return;
+  try{await fetch(`${API}/api/trading/cancel-all`,{method:'POST'});alert('All open orders cancelled.');setTimeout(loadLive,2000)}catch(e){alert(`Failed: ${e.message}`)}
 }
 
 loadPortfolio();
