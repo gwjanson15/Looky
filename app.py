@@ -195,6 +195,235 @@ def compare():
     })
 
 
+# ══════════════════════════════════════════════════════════════
+# ALPACA TRADING — Same integration as base strategy
+# ══════════════════════════════════════════════════════════════
+
+def _get_target_weights():
+    """Return the enhanced portfolio weights for Alpaca."""
+    return {s["ticker"]: s["weight"] for s in PORTFOLIO}
+
+
+@app.route("/api/trading/status")
+def trading_status():
+    """Check Alpaca connection and portfolio state."""
+    try:
+        from alpaca_trader import AlpacaTrader
+        trader = AlpacaTrader()
+        env_check = {
+            "ALPACA_API_KEY": bool(os.environ.get("ALPACA_API_KEY")),
+            "ALPACA_SECRET_KEY": bool(os.environ.get("ALPACA_SECRET_KEY")),
+            "ALPACA_BASE_URL": os.environ.get("ALPACA_BASE_URL", "not set (defaults to paper)"),
+            "DEPLOY_CAPITAL": os.environ.get("DEPLOY_CAPITAL", "not set"),
+            "AUTO_TRADE": os.environ.get("AUTO_TRADE", "not set"),
+        }
+        if not trader.is_configured:
+            return jsonify({"connected": False, "reason": "API keys not set", "env_check": env_check})
+
+        account = trader.get_account()
+        positions = trader.get_positions()
+        return jsonify({
+            "connected": True,
+            "strategy": "Enhanced Multi-Manager Consensus",
+            "mode": "paper" if "paper" in trader.base_url else "live",
+            "account_status": account.get("status"),
+            "equity": float(account.get("equity", 0)),
+            "buying_power": float(account.get("buying_power", 0)),
+            "cash": float(account.get("cash", 0)),
+            "positions_count": len(positions),
+            "portfolio_empty": len(positions) == 0,
+            "market_open": trader.is_market_open(),
+            "env_check": env_check,
+            "positions": [{"symbol": p["symbol"], "qty": p["qty"], "market_value": p["market_value"]} for p in positions],
+        })
+    except Exception as e:
+        return jsonify({"connected": False, "reason": str(e)}), 500
+
+
+@app.route("/api/trading/preview", methods=["POST"])
+def trading_preview():
+    """Dry-run: show what trades would be executed."""
+    try:
+        from alpaca_trader import AlpacaTrader
+        trader = AlpacaTrader()
+        if not trader.is_configured:
+            return jsonify({"error": "Alpaca not configured"}), 400
+        weights = _get_target_weights()
+        capital = float(os.environ.get("DEPLOY_CAPITAL", 0)) or None
+        result = trader.sync_portfolio(weights, capital=capital, dry_run=True)
+        result["strategy"] = "Enhanced Multi-Manager Consensus"
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/trading/execute", methods=["POST"])
+def trading_execute():
+    """Execute trades. Paper: {"confirm":true}. Live: add "live_confirm":"I understand this uses real money"."""
+    try:
+        from alpaca_trader import AlpacaTrader
+        trader = AlpacaTrader()
+        if not trader.is_configured:
+            return jsonify({"error": "Alpaca not configured"}), 400
+
+        data = request.get_json(silent=True) or {}
+        if not data.get("confirm"):
+            return jsonify({"error": "Set confirm: true"}), 400
+
+        is_live = "paper" not in trader.base_url
+        if is_live and data.get("live_confirm") != "I understand this uses real money":
+            return jsonify({"error": "LIVE TRADING BLOCKED", "fix": 'Add "live_confirm": "I understand this uses real money"'}), 403
+
+        weights = _get_target_weights()
+        capital = data.get("capital") or float(os.environ.get("DEPLOY_CAPITAL", 0)) or None
+        result = trader.sync_portfolio(weights, capital=capital, dry_run=False)
+        result["strategy"] = "Enhanced Multi-Manager Consensus"
+        result["mode_warning"] = "LIVE — real money" if is_live else "Paper trading"
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/trading/orders")
+def trading_orders():
+    """Check order status — filled, cancelled, pending, rejected."""
+    try:
+        from alpaca_trader import AlpacaTrader
+        trader = AlpacaTrader()
+        if not trader.is_configured:
+            return jsonify({"error": "Alpaca not configured"}), 400
+        return jsonify(trader.get_order_summary())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/trading/positions")
+def trading_positions():
+    """Get current Alpaca positions."""
+    try:
+        from alpaca_trader import AlpacaTrader
+        trader = AlpacaTrader()
+        if not trader.is_configured:
+            return jsonify({"error": "Alpaca not configured"}), 400
+        return jsonify(trader.get_portfolio_summary())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/trading/deploy-now", methods=["POST"])
+def trading_deploy_now():
+    """Cancel open orders and deploy fresh. Paper: {"confirm":true}. Live: add live_confirm."""
+    try:
+        from alpaca_trader import AlpacaTrader
+        trader = AlpacaTrader()
+        if not trader.is_configured:
+            return jsonify({"error": "Alpaca not configured"}), 400
+
+        data = request.get_json(silent=True) or {}
+        if not data.get("confirm"):
+            return jsonify({"error": "Set confirm: true"}), 400
+
+        is_live = "paper" not in trader.base_url
+        if is_live and data.get("live_confirm") != "I understand this uses real money":
+            return jsonify({"error": "LIVE TRADING BLOCKED", "fix": 'Add "live_confirm": "I understand this uses real money"'}), 403
+
+        capital = data.get("capital") or float(os.environ.get("DEPLOY_CAPITAL", 0)) or None
+        if not capital:
+            return jsonify({"error": "No capital — set DEPLOY_CAPITAL env var or pass capital in body"}), 400
+
+        open_orders = trader.get_open_orders()
+        if open_orders:
+            trader.cancel_all_orders()
+            import time
+            time.sleep(2)
+
+        positions = trader.get_positions()
+        weights = _get_target_weights()
+
+        if len(positions) == 0:
+            result = trader.deploy_initial_portfolio(weights, capital=capital, dry_run=False)
+        else:
+            result = trader.execute_rebalance(weights, capital=capital, dry_run=False)
+
+        result["cancelled_orders"] = len(open_orders)
+        result["strategy"] = "Enhanced Multi-Manager Consensus"
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/trading/cancel-all", methods=["POST"])
+def trading_cancel_all():
+    """Cancel all open orders."""
+    try:
+        from alpaca_trader import AlpacaTrader
+        trader = AlpacaTrader()
+        if not trader.is_configured:
+            return jsonify({"error": "Alpaca not configured"}), 400
+        result = trader.cancel_all_orders()
+        return jsonify({"status": "cancelled", "result": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/trading/preflight")
+def trading_preflight():
+    """Pre-deployment checklist."""
+    try:
+        from alpaca_trader import AlpacaTrader
+        trader = AlpacaTrader()
+        checks = []
+        checks.append({"check": "API keys", "pass": trader.is_configured})
+        if not trader.is_configured:
+            return jsonify({"ready": False, "checks": checks})
+
+        account = trader.get_account()
+        is_live = "paper" not in trader.base_url
+        capital = float(os.environ.get("DEPLOY_CAPITAL", 0))
+        equity = float(account.get("equity", 0))
+        buying_power = float(account.get("buying_power", 0))
+
+        checks.append({"check": "API connection", "pass": True, "detail": account.get("status")})
+        checks.append({"check": "Mode", "pass": True, "detail": "LIVE" if is_live else "Paper"})
+        checks.append({"check": "Funds", "pass": buying_power >= capital * 0.9, "detail": f"Equity: ${equity:,.0f}, Buying power: ${buying_power:,.0f}, Target: ${capital:,.0f}"})
+        checks.append({"check": "Market", "pass": trader.is_market_open(), "detail": "Open" if trader.is_market_open() else "Closed"})
+        checks.append({"check": "Portfolio loaded", "pass": len(PORTFOLIO) > 0, "detail": f"{len(PORTFOLIO)} positions"})
+        checks.append({"check": "DEPLOY_CAPITAL", "pass": capital > 0, "detail": f"${capital:,.0f}" if capital > 0 else "Not set"})
+
+        return jsonify({"ready": all(c["pass"] for c in checks), "mode": "LIVE" if is_live else "Paper", "checks": checks})
+    except Exception as e:
+        return jsonify({"ready": False, "error": str(e)}), 500
+
+
+# ── Auto-Deploy (paper only) ────────────────────────────────
+
+def _auto_deploy():
+    if os.environ.get("AUTO_TRADE", "").lower() != "true":
+        return
+    try:
+        from alpaca_trader import AlpacaTrader
+        trader = AlpacaTrader()
+        if not trader.is_configured:
+            return
+        if "paper" not in trader.base_url:
+            print("[AutoTrade] BLOCKED in live mode.")
+            return
+        if not trader.portfolio_is_empty():
+            print("[AutoTrade] Portfolio has positions. Skipping.")
+            return
+        capital = float(os.environ.get("DEPLOY_CAPITAL", 0))
+        if not capital:
+            return
+        weights = _get_target_weights()
+        print(f"[AutoTrade] Deploying ${capital:,.0f} into {len(weights)} enhanced positions...")
+        result = trader.deploy_initial_portfolio(weights, capital=capital, dry_run=False)
+        print(f"[AutoTrade] Done: {len(result.get('executed', []))} orders, {len(result.get('errors', []))} errors")
+    except Exception as e:
+        print(f"[AutoTrade] Failed: {e}")
+
+_auto_deploy()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8081))
     app.run(host="0.0.0.0", port=port, debug=False)
