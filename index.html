@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enhanced 13F Alpha Strategy</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#05080f;--surface:#0c1220;--s2:#131d30;--border:#1a2744;--text:#d8e2f0;--dim:#6b7fa3;--cyan:#00e5ff;--violet:#b388ff;--gold:#ffd740;--green:#00e676;--red:#ff5252;--orange:#ffab40;--blue:#448aff;--r:10px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+.mono{font-family:'Space Mono',monospace}
+.header{padding:28px 36px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px}
+.header h1{font-size:24px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--violet));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .sub{font-size:12px;color:var(--dim);margin-top:4px}
+.badge{display:inline-block;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600;font-family:'Space Mono',monospace}
+.badge-new{background:rgba(0,229,255,0.15);color:var(--cyan)}
+.badge-crowded{background:rgba(255,82,82,0.15);color:var(--red)}
+.badge-momentum{background:rgba(0,230,118,0.15);color:var(--green)}
+.badge-boost{background:rgba(255,215,64,0.15);color:var(--gold)}
+.tabs{display:flex;gap:0;padding:0 36px;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{padding:12px 20px;font-size:13px;font-weight:500;color:var(--dim);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .2s;white-space:nowrap}
+.tab:hover{color:var(--text)}.tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.main{padding:28px 36px 60px}
+.panel{display:none}.panel.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:28px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px}
+.card .label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:6px}
+.card .value{font-size:22px;font-weight:700;font-family:'Space Mono',monospace}
+.card .sub{font-size:11px;color:var(--dim);margin-top:3px}
+.pos{color:var(--green)}.neg{color:var(--red)}
+.tw{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:28px}
+.tw-title{padding:14px 18px;font-weight:600;font-size:14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim);border-bottom:1px solid var(--border);font-weight:500;background:var(--surface)}
+td{padding:10px 14px;border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:11px}
+tr:last-child td{border-bottom:none}tr:hover{background:var(--s2)}
+td.nm{font-family:'Sora',sans-serif;font-weight:500;font-size:12px}
+.chart-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:28px}
+.chart-box h3{font-size:14px;font-weight:600;margin-bottom:14px}
+.cw{position:relative;height:340px}
+.cw canvas{max-height:340px}
+.cap-row{display:flex;align-items:center;gap:14px;margin-bottom:28px;flex-wrap:wrap}
+.cap-input{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-family:'Space Mono',monospace;font-size:15px;width:180px;outline:none}
+.cap-input:focus{border-color:var(--cyan)}
+.btn{padding:9px 20px;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s}
+.btn-p{background:linear-gradient(135deg,var(--cyan),var(--violet));color:var(--bg)}.btn-p:hover{opacity:.9}
+.mgr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:28px}
+.mgr-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px}
+.mgr-card h4{font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:4px}
+.mgr-card .meta{font-size:11px;color:var(--dim);margin-bottom:10px}
+.mgr-card ul{list-style:none;padding:0}.mgr-card li{padding:3px 0;font-size:11px;font-family:'Space Mono',monospace;color:var(--dim)}
+.mgr-card li::before{content:"›";color:var(--cyan);margin-right:6px;font-weight:bold}
+.layer-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px}
+.layer-card h4{font-size:13px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.layer-num{background:var(--cyan);color:var(--bg);width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.layer-card p{font-size:12px;color:var(--dim);line-height:1.7}
+.heatmap{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-top:8px}
+.hm-cell{aspect-ratio:1.4;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:'Space Mono',monospace;cursor:default;transition:transform .1s}
+.hm-cell:hover{transform:scale(1.15);z-index:1}
+.hm-label{font-size:10px;color:var(--dim);text-align:center;padding:2px}
+@media(max-width:768px){.header,.tabs,.main{padding-left:16px;padding-right:16px}.header h1{font-size:20px}.cards{grid-template-columns:repeat(2,1fr)}.cw{height:260px}.cap-input{width:120px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>Enhanced 13F Alpha Strategy</h1>
+    <div class="sub">Multi-Manager Consensus · 6 Alpha Layers · Momentum + Drift-Band Rebalancing</div>
+  </div>
+  <div class="cap-row">
+    <label style="font-size:13px;font-weight:500">Capital $</label>
+    <input type="text" id="capInput" class="cap-input" value="100,000">
+    <button class="btn btn-p" onclick="applyCapital()">Apply</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-p="portfolio">Portfolio</button>
+  <button class="tab" data-p="consensus">Consensus</button>
+  <button class="tab" data-p="managers">Managers</button>
+  <button class="tab" data-p="backtest">Backtest</button>
+  <button class="tab" data-p="compare">Compare</button>
+  <button class="tab" data-p="layers">Strategy</button>
+</div>
+
+<div class="main">
+  <div class="panel active" id="panel-portfolio">
+    <div class="cards" id="port-cards"></div>
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:20px">
+      <div class="chart-box"><h3>Portfolio Weights</h3><div class="cw"><canvas id="weightChart"></canvas></div></div>
+      <div class="chart-box"><h3>Allocation</h3><div class="cw"><canvas id="pieChart"></canvas></div></div>
+    </div>
+    <div class="tw"><div class="tw-title"><span>Enhanced Holdings — Consensus Weighted</span></div>
+      <div style="overflow-x:auto"><table id="holdTable"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Weight</th><th>Consensus</th><th>Managers</th><th>Signals</th><th>Allocation</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-consensus">
+    <div class="cards" id="con-cards"></div>
+    <div class="tw"><div class="tw-title">Full Consensus Ranking — All Tickers Across Managers</div>
+      <div style="overflow-x:auto"><table id="conTable"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Score</th><th>Managers</th><th>Who Holds It</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-managers">
+    <div class="mgr-grid" id="mgrGrid"></div>
+  </div>
+
+  <div class="panel" id="panel-backtest">
+    <div class="cards" id="bt-cards"></div>
+    <div class="chart-box"><h3>Enhanced Portfolio vs Benchmark — 5yr</h3><div class="cw"><canvas id="btChart"></canvas></div></div>
+    <div class="chart-box"><h3>Drawdown</h3><div class="cw" style="height:180px"><canvas id="ddChart"></canvas></div></div>
+    <div class="chart-box"><h3>Monthly Returns</h3><div id="heatmap"></div></div>
+  </div>
+
+  <div class="panel" id="panel-compare">
+    <div class="cards" id="cmp-cards"></div>
+    <div class="chart-box"><h3>Enhanced vs Base Divisadero — Key Metrics</h3><div class="cw"><canvas id="cmpChart"></canvas></div></div>
+  </div>
+
+  <div class="panel" id="panel-layers">
+    <div id="layerCards"></div>
+  </div>
+</div>
+
+<script>
+const API=window.location.origin;let CAP=100000;
+const C=['#00e5ff','#b388ff','#00e676','#ffd740','#ff5252','#448aff','#ffab40','#ea80fc','#64ffda','#ff80ab'];
+function fC(n){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:0,maximumFractionDigits:0}).format(n)}
+function pC(s){return parseFloat(s.replace(/[^0-9.]/g,''))||100000}
+function applyCapital(){CAP=pC(document.getElementById('capInput').value);document.getElementById('capInput').value=CAP.toLocaleString();loadPortfolio()}
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');document.getElementById('panel-'+t.dataset.p).classList.add('active');
+  if(t.dataset.p==='consensus')loadConsensus();
+  if(t.dataset.p==='managers')loadManagers();
+  if(t.dataset.p==='backtest')loadBacktest();
+  if(t.dataset.p==='compare')loadCompare();
+  if(t.dataset.p==='layers')loadLayers();
+}));
+
+async function f(u){try{const r=await fetch(u);return r.json()}catch(e){return null}}
+
+// ── PORTFOLIO ──
+let portData=null;
+async function loadPortfolio(){
+  const d=await f(`${API}/api/allocate?capital=${CAP}`);
+  if(!d)return;portData=d;
+  document.getElementById('port-cards').innerHTML=`
+    <div class="card"><div class="label">Positions</div><div class="value">${d.positions}</div><div class="sub">Concentrated best ideas</div></div>
+    <div class="card"><div class="label">Managers Tracked</div><div class="value">5</div><div class="sub">Elite hedge funds</div></div>
+    <div class="card"><div class="label">Deploy Capital</div><div class="value">${fC(CAP)}</div></div>
+    <div class="card"><div class="label">Rebalance</div><div class="value mono" style="font-size:14px">Drift-Band</div><div class="sub">Asymmetric momentum</div></div>
+  `;
+  const a=d.allocations;
+  const tbody=document.querySelector('#holdTable tbody');
+  tbody.innerHTML=a.map((h,i)=>{
+    let badges='';
+    if(h.is_new)badges+=`<span class="badge badge-new">NEW</span> `;
+    if(h.crowded)badges+=`<span class="badge badge-crowded">CROWDED</span> `;
+    if(h.momentum)badges+=`<span class="badge badge-momentum">MOM ✓</span> `;
+    return `<tr>
+      <td style="color:var(--dim)">${i+1}</td>
+      <td style="color:var(--cyan);font-weight:600">${h.ticker}</td>
+      <td class="nm">${h.name}</td>
+      <td>${h.weight_pct}%</td>
+      <td style="color:var(--gold)">${h.consensus_score}</td>
+      <td>${h.manager_count}/5</td>
+      <td>${badges}</td>
+      <td style="color:var(--green)">${fC(h.dollar_allocation)}</td>
+    </tr>`}).join('');
+
+  // Charts
+  const ctx=document.getElementById('weightChart').getContext('2d');
+  if(window._wc)window._wc.destroy();
+  window._wc=new Chart(ctx,{type:'bar',data:{labels:a.map(h=>h.ticker),datasets:[{data:a.map(h=>h.weight_pct),backgroundColor:C,borderRadius:6,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',font:{family:'Space Mono',size:10}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>v+'%'}}}}});
+
+  const ctx2=document.getElementById('pieChart').getContext('2d');
+  if(window._pc)window._pc.destroy();
+  window._pc=new Chart(ctx2,{type:'doughnut',data:{labels:a.map(h=>h.ticker),datasets:[{data:a.map(h=>h.weight_pct),backgroundColor:C,borderWidth:0,spacing:2}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'right',labels:{color:'#6b7fa3',font:{family:'Space Mono',size:10},boxWidth:10,padding:6}}}}});
+}
+
+// ── CONSENSUS ──
+async function loadConsensus(){
+  const d=await f(`${API}/api/consensus`);if(!d)return;
+  document.getElementById('con-cards').innerHTML=`
+    <div class="card"><div class="label">Unique Tickers</div><div class="value">${d.total_tickers}</div></div>
+    <div class="card"><div class="label">Top Score</div><div class="value" style="color:var(--gold)">${d.consensus[0]?.consensus_score||0}</div><div class="sub">${d.consensus[0]?.ticker||''}</div></div>
+    <div class="card"><div class="label">Multi-Manager</div><div class="value">${d.consensus.filter(c=>c.manager_count>=3).length}</div><div class="sub">Held by 3+ managers</div></div>
+  `;
+  const tbody=document.querySelector('#conTable tbody');
+  tbody.innerHTML=d.consensus.map((c,i)=>`<tr>
+    <td style="color:var(--dim)">${i+1}</td>
+    <td style="color:var(--cyan);font-weight:600">${c.ticker}</td>
+    <td class="nm">${c.name}</td>
+    <td style="color:var(--gold);font-weight:600">${c.consensus_score}</td>
+    <td>${c.manager_count}/5</td>
+    <td style="font-family:Sora;font-size:11px;color:var(--dim)">${c.managers.map(m=>`<span style="color:var(--text)">${m.manager.split(' ')[0]}</span> (#${m.rank})`).join(', ')}</td>
+  </tr>`).join('');
+}
+
+// ── MANAGERS ──
+async function loadManagers(){
+  const d=await f(`${API}/api/managers`);if(!d)return;
+  document.getElementById('mgrGrid').innerHTML=Object.entries(d).map(([id,m])=>`
+    <div class="mgr-card">
+      <h4>${m.name}</h4>
+      <div class="meta">${m.style} · $${m.aum_b}B AUM · CIK ${m.cik}</div>
+      <ul>${m.top_10.map((h,i)=>`<li><span style="color:var(--cyan)">${h.ticker}</span> ${h.name.substring(0,25)}</li>`).join('')}</ul>
+    </div>
+  `).join('');
+}
+
+// ── BACKTEST ──
+async function loadBacktest(){
+  const d=await f(`${API}/api/backtest?capital=${CAP}&years=5`);if(!d)return;
+  const s=d.summary;
+  document.getElementById('bt-cards').innerHTML=`
+    <div class="card"><div class="label">Total Return</div><div class="value ${s.total_return_pct>=0?'pos':'neg'}">${s.total_return_pct>=0?'+':''}${s.total_return_pct}%</div></div>
+    <div class="card"><div class="label">CAGR</div><div class="value ${s.cagr_pct>=0?'pos':'neg'}">${s.cagr_pct>=0?'+':''}${s.cagr_pct}%</div></div>
+    <div class="card"><div class="label">Max Drawdown</div><div class="value neg">${s.max_drawdown_pct}%</div></div>
+    <div class="card"><div class="label">Sharpe</div><div class="value">${s.sharpe_ratio}</div></div>
+    <div class="card"><div class="label">Final Value</div><div class="value">${fC(s.final_value)}</div><div class="sub">from ${fC(s.initial_capital)}</div></div>
+  `;
+  const ctx=document.getElementById('btChart').getContext('2d');
+  if(window._bt)window._bt.destroy();
+  window._bt=new Chart(ctx,{type:'line',data:{labels:d.daily_values.map(v=>v.date),datasets:[{label:'Enhanced Alpha',data:d.daily_values.map(v=>v.value),borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,.05)',fill:true,tension:.3,pointRadius:0,borderWidth:2},{label:'S&P 500 Benchmark',data:d.benchmark.map(v=>v.value),borderColor:'#6b7fa3',borderDash:[5,5],fill:false,tension:.3,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{labels:{color:'#6b7fa3',font:{family:'Sora',size:11}}}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',maxTicksLimit:10,font:{size:9}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>fC(v)}}}}});
+
+  const ctx2=document.getElementById('ddChart').getContext('2d');
+  if(window._dd)window._dd.destroy();
+  window._dd=new Chart(ctx2,{type:'line',data:{labels:d.daily_values.map(v=>v.date),datasets:[{data:d.daily_values.map(v=>v.drawdown),borderColor:'#ff5252',backgroundColor:'rgba(255,82,82,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',maxTicksLimit:10,font:{size:9}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>v+'%'}}}}});
+
+  // Heatmap
+  const hm=document.getElementById('heatmap');const yrs={};
+  d.monthly_returns.forEach(m=>{const[y,mo]=m.month.split('-');if(!yrs[y])yrs[y]={};yrs[y][parseInt(mo)]=m.return});
+  const mos=['J','F','M','A','M','J','J','A','S','O','N','D'];
+  let html='<div class="heatmap" style="grid-template-columns:50px repeat(12,1fr)"><div></div>';
+  mos.forEach(m=>html+=`<div class="hm-label">${m}</div>`);
+  Object.keys(yrs).sort().forEach(y=>{html+=`<div class="hm-label" style="text-align:right;padding-right:6px">${y}</div>`;
+    for(let m=1;m<=12;m++){const r=yrs[y][m];if(r!==undefined){const i=Math.min(Math.abs(r)/15,1);const c=r>=0?`rgba(0,230,118,${.15+i*.7})`:`rgba(255,82,82,${.15+i*.7})`;html+=`<div class="hm-cell" style="background:${c}" title="${y}-${String(m).padStart(2,'0')}: ${r}%">${r>0?'+':''}${r.toFixed(1)}</div>`}else html+=`<div class="hm-cell" style="background:var(--s2)">—</div>`}});
+  html+='</div>';hm.innerHTML=html;
+}
+
+// ── COMPARE ──
+async function loadCompare(){
+  const d=await f(`${API}/api/compare?capital=${CAP}`);if(!d)return;
+  const e=d.enhanced,b=d.base,imp=d.improvement;
+  document.getElementById('cmp-cards').innerHTML=`
+    <div class="card"><div class="label">Enhanced CAGR</div><div class="value pos">+${e.cagr_pct}%</div></div>
+    <div class="card"><div class="label">Base CAGR</div><div class="value" style="color:var(--dim)">+${b.cagr_pct}%</div></div>
+    <div class="card"><div class="label">CAGR Improvement</div><div class="value ${imp.cagr_diff>=0?'pos':'neg'}">${imp.cagr_diff>=0?'+':''}${imp.cagr_diff}%</div></div>
+    <div class="card"><div class="label">Sharpe Improvement</div><div class="value ${imp.sharpe_diff>=0?'pos':'neg'}">${imp.sharpe_diff>=0?'+':''}${imp.sharpe_diff}</div></div>
+  `;
+  const ctx=document.getElementById('cmpChart').getContext('2d');
+  if(window._cmp)window._cmp.destroy();
+  window._cmp=new Chart(ctx,{type:'bar',data:{labels:['CAGR %','Sharpe','Max DD %','Total Return %'],datasets:[{label:'Enhanced',data:[e.cagr_pct,e.sharpe_ratio,Math.abs(e.max_drawdown_pct),e.total_return_pct],backgroundColor:'rgba(0,229,255,.7)',borderRadius:6},{label:'Base Divisadero',data:[b.cagr_pct,b.sharpe_ratio,Math.abs(b.max_drawdown_pct),b.total_return_pct],backgroundColor:'rgba(107,127,163,.4)',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6b7fa3'}}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3'}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3'}}}}});
+}
+
+// ── LAYERS ──
+async function loadLayers(){
+  const d=await f(`${API}/api/strategy`);if(!d)return;
+  document.getElementById('layerCards').innerHTML=d.layers.map(l=>`
+    <div class="layer-card">
+      <h4><span class="layer-num">${l.layer}</span> ${l.name}</h4>
+      <p>${l.description}</p>
+    </div>
+  `).join('')+`<div class="layer-card"><h4 style="color:var(--dim)">Excluded Tickers</h4><p>${d.excluded_tickers.join(', ')||'None'}</p></div>`;
+}
+
+loadPortfolio();
+</script>
+</body>
+</html>
