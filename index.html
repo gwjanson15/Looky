@@ -83,6 +83,7 @@ td.nm{font-family:'Sora',sans-serif;font-weight:500;font-size:12px}
   <button class="tab" data-p="managers">Managers</button>
   <button class="tab" data-p="backtest">Backtest</button>
   <button class="tab" data-p="compare">Compare</button>
+  <button class="tab" data-p="sizing">Size Optimizer</button>
   <button class="tab" data-p="layers">Strategy</button>
 </div>
 
@@ -136,15 +137,33 @@ td.nm{font-family:'Sora',sans-serif;font-weight:500;font-size:12px}
   </div>
 
   <div class="panel" id="panel-backtest">
+    <div style="display:flex;gap:8px;margin-bottom:20px">
+      <button class="btn btn-p bt-period active" data-y="5" onclick="switchPeriod(5)">5 Year</button>
+      <button class="btn bt-period" style="background:var(--s2);color:var(--text);border:1px solid var(--border)" data-y="10" onclick="switchPeriod(10)">10 Year</button>
+      <button class="btn bt-period" style="background:var(--s2);color:var(--text);border:1px solid var(--border)" data-y="15" onclick="switchPeriod(15)">15 Year</button>
+    </div>
     <div class="cards" id="bt-cards"></div>
-    <div class="chart-box"><h3>Enhanced Portfolio vs Benchmark — 5yr</h3><div class="cw"><canvas id="btChart"></canvas></div></div>
+    <div class="chart-box"><h3 id="bt-title">Enhanced Portfolio vs Benchmark — 5yr</h3><div class="cw"><canvas id="btChart"></canvas></div></div>
     <div class="chart-box"><h3>Drawdown</h3><div class="cw" style="height:180px"><canvas id="ddChart"></canvas></div></div>
     <div class="chart-box"><h3>Monthly Returns</h3><div id="heatmap"></div></div>
+
+    <div class="tw" style="margin-top:20px">
+      <div class="tw-title">Period Comparison</div>
+      <div style="overflow-x:auto"><table id="periodTable"><thead><tr><th>Period</th><th>CAGR</th><th>Sharpe</th><th>Max DD</th><th>Total Return</th><th>Final Value</th></tr></thead><tbody id="periodBody"><tr><td colspan="6" style="text-align:center;color:var(--dim);padding:24px">Loading all periods...</td></tr></tbody></table></div>
+    </div>
   </div>
 
   <div class="panel" id="panel-compare">
     <div class="cards" id="cmp-cards"></div>
     <div class="chart-box"><h3>Enhanced vs Base Divisadero — Key Metrics</h3><div class="cw"><canvas id="cmpChart"></canvas></div></div>
+  </div>
+
+  <div class="panel" id="panel-sizing">
+    <div class="cards" id="sz-cards"></div>
+    <div class="chart-box"><h3>Performance by Portfolio Size</h3><div class="cw"><canvas id="szChart"></canvas></div></div>
+    <div class="tw"><div class="tw-title">Backtest Results — All Sizes</div>
+      <div style="overflow-x:auto"><table id="szTable"><thead><tr><th>Positions</th><th>CAGR</th><th>Sharpe</th><th>Max DD</th><th>Total Return</th><th>Final Value</th><th></th></tr></thead><tbody></tbody></table></div>
+    </div>
   </div>
 
   <div class="panel" id="panel-layers">
@@ -168,6 +187,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(t.dataset.p==='managers')loadManagers();
   if(t.dataset.p==='backtest')loadBacktest();
   if(t.dataset.p==='compare')loadCompare();
+  if(t.dataset.p==='sizing')loadSizing();
   if(t.dataset.p==='layers')loadLayers();
 }));
 
@@ -244,32 +264,79 @@ async function loadManagers(){
 }
 
 // ── BACKTEST ──
+let btCache={};let currentPeriod=5;
+
 async function loadBacktest(){
-  const d=await f(`${API}/api/backtest?capital=${CAP}&years=5`);if(!d)return;
+  // Load all three periods in parallel
+  const [d5,d10,d15]=await Promise.all([
+    btCache[5]||f(`${API}/api/backtest?capital=${CAP}&years=5`),
+    btCache[10]||f(`${API}/api/backtest?capital=${CAP}&years=10`),
+    btCache[15]||f(`${API}/api/backtest?capital=${CAP}&years=15`),
+  ]);
+  if(d5)btCache[5]=d5;if(d10)btCache[10]=d10;if(d15)btCache[15]=d15;
+
+  // Render period comparison table
+  const periods=[{y:5,d:d5},{y:10,d:d10},{y:15,d:d15}];
+  document.getElementById('periodBody').innerHTML=periods.map(p=>{
+    if(!p.d)return`<tr><td>${p.y}yr</td><td colspan="5" style="color:var(--dim)">Failed to load</td></tr>`;
+    const s=p.d.summary;
+    const isCurrent=p.y===currentPeriod;
+    return`<tr style="${isCurrent?'background:var(--s2)':''}">
+      <td style="font-weight:600;color:${isCurrent?'var(--cyan)':'var(--text)'}">${p.y} Year</td>
+      <td class="${s.cagr_pct>=0?'pos':'neg'}">${s.cagr_pct>=0?'+':''}${s.cagr_pct}%</td>
+      <td style="color:var(--gold)">${s.sharpe_ratio}</td>
+      <td class="neg">${s.max_drawdown_pct}%</td>
+      <td class="${s.total_return_pct>=0?'pos':'neg'}">${s.total_return_pct>=0?'+':''}${s.total_return_pct}%</td>
+      <td>${fC(s.final_value)}</td>
+    </tr>`}).join('');
+
+  renderBacktestPeriod(currentPeriod);
+}
+
+function switchPeriod(y){
+  currentPeriod=y;
+  document.querySelectorAll('.bt-period').forEach(b=>{
+    if(parseInt(b.dataset.y)===y){b.classList.add('active');b.className='btn btn-p bt-period active';b.style.cssText=''}
+    else{b.classList.remove('active');b.className='btn bt-period';b.style.cssText='background:var(--s2);color:var(--text);border:1px solid var(--border)'}
+  });
+  if(btCache[y])renderBacktestPeriod(y);
+  else loadBacktest();
+}
+
+function renderBacktestPeriod(y){
+  const d=btCache[y];if(!d)return;
   const s=d.summary;
+  document.getElementById('bt-title').textContent=`Enhanced Portfolio vs Benchmark — ${y}yr`;
   document.getElementById('bt-cards').innerHTML=`
     <div class="card"><div class="label">Total Return</div><div class="value ${s.total_return_pct>=0?'pos':'neg'}">${s.total_return_pct>=0?'+':''}${s.total_return_pct}%</div></div>
     <div class="card"><div class="label">CAGR</div><div class="value ${s.cagr_pct>=0?'pos':'neg'}">${s.cagr_pct>=0?'+':''}${s.cagr_pct}%</div></div>
     <div class="card"><div class="label">Max Drawdown</div><div class="value neg">${s.max_drawdown_pct}%</div></div>
     <div class="card"><div class="label">Sharpe</div><div class="value">${s.sharpe_ratio}</div></div>
-    <div class="card"><div class="label">Final Value</div><div class="value">${fC(s.final_value)}</div><div class="sub">from ${fC(s.initial_capital)}</div></div>
+    <div class="card"><div class="label">Final Value</div><div class="value">${fC(s.final_value)}</div><div class="sub">from ${fC(s.initial_capital)}, ${y}yr</div></div>
   `;
+
+  // Update period comparison table highlighting
+  document.querySelectorAll('#periodBody tr').forEach(tr=>{
+    const first=tr.querySelector('td');
+    if(first&&first.textContent.includes(y+' Year')){tr.style.background='var(--s2)';first.style.color='var(--cyan)'}
+    else{tr.style.background='';if(first)first.style.color='var(--text)'}
+  });
+
   const ctx=document.getElementById('btChart').getContext('2d');
   if(window._bt)window._bt.destroy();
-  window._bt=new Chart(ctx,{type:'line',data:{labels:d.daily_values.map(v=>v.date),datasets:[{label:'Enhanced Alpha',data:d.daily_values.map(v=>v.value),borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,.05)',fill:true,tension:.3,pointRadius:0,borderWidth:2},{label:'S&P 500 Benchmark',data:d.benchmark.map(v=>v.value),borderColor:'#6b7fa3',borderDash:[5,5],fill:false,tension:.3,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{labels:{color:'#6b7fa3',font:{family:'Sora',size:11}}}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',maxTicksLimit:10,font:{size:9}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>fC(v)}}}}});
+  window._bt=new Chart(ctx,{type:'line',data:{labels:d.daily_values.map(v=>v.date),datasets:[{label:'Enhanced Alpha',data:d.daily_values.map(v=>v.value),borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,.05)',fill:true,tension:.3,pointRadius:0,borderWidth:2},{label:'S&P 500 Benchmark',data:d.benchmark.map(v=>v.value),borderColor:'#6b7fa3',borderDash:[5,5],fill:false,tension:.3,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{labels:{color:'#6b7fa3',font:{family:'Sora',size:11}}}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',maxTicksLimit:12,font:{size:9}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>fC(v)}}}}});
 
   const ctx2=document.getElementById('ddChart').getContext('2d');
   if(window._dd)window._dd.destroy();
-  window._dd=new Chart(ctx2,{type:'line',data:{labels:d.daily_values.map(v=>v.date),datasets:[{data:d.daily_values.map(v=>v.drawdown),borderColor:'#ff5252',backgroundColor:'rgba(255,82,82,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',maxTicksLimit:10,font:{size:9}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>v+'%'}}}}});
+  window._dd=new Chart(ctx2,{type:'line',data:{labels:d.daily_values.map(v=>v.date),datasets:[{data:d.daily_values.map(v=>v.drawdown),borderColor:'#ff5252',backgroundColor:'rgba(255,82,82,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',maxTicksLimit:12,font:{size:9}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>v+'%'}}}}});
 
-  // Heatmap
   const hm=document.getElementById('heatmap');const yrs={};
-  d.monthly_returns.forEach(m=>{const[y,mo]=m.month.split('-');if(!yrs[y])yrs[y]={};yrs[y][parseInt(mo)]=m.return});
+  d.monthly_returns.forEach(m=>{const[yr,mo]=m.month.split('-');if(!yrs[yr])yrs[yr]={};yrs[yr][parseInt(mo)]=m.return});
   const mos=['J','F','M','A','M','J','J','A','S','O','N','D'];
   let html='<div class="heatmap" style="grid-template-columns:50px repeat(12,1fr)"><div></div>';
   mos.forEach(m=>html+=`<div class="hm-label">${m}</div>`);
-  Object.keys(yrs).sort().forEach(y=>{html+=`<div class="hm-label" style="text-align:right;padding-right:6px">${y}</div>`;
-    for(let m=1;m<=12;m++){const r=yrs[y][m];if(r!==undefined){const i=Math.min(Math.abs(r)/15,1);const c=r>=0?`rgba(0,230,118,${.15+i*.7})`:`rgba(255,82,82,${.15+i*.7})`;html+=`<div class="hm-cell" style="background:${c}" title="${y}-${String(m).padStart(2,'0')}: ${r}%">${r>0?'+':''}${r.toFixed(1)}</div>`}else html+=`<div class="hm-cell" style="background:var(--s2)">—</div>`}});
+  Object.keys(yrs).sort().forEach(yr=>{html+=`<div class="hm-label" style="text-align:right;padding-right:6px">${yr}</div>`;
+    for(let m=1;m<=12;m++){const r=yrs[yr][m];if(r!==undefined){const i=Math.min(Math.abs(r)/15,1);const c=r>=0?`rgba(0,230,118,${.15+i*.7})`:`rgba(255,82,82,${.15+i*.7})`;html+=`<div class="hm-cell" style="background:${c}" title="${yr}-${String(m).padStart(2,'0')}: ${r}%">${r>0?'+':''}${r.toFixed(1)}</div>`}else html+=`<div class="hm-cell" style="background:var(--s2)">—</div>`}});
   html+='</div>';hm.innerHTML=html;
 }
 
@@ -297,6 +364,46 @@ async function loadLayers(){
       <p>${l.description}</p>
     </div>
   `).join('')+`<div class="layer-card"><h4 style="color:var(--dim)">Excluded Tickers</h4><p>${d.excluded_tickers.join(', ')||'None'}</p></div>`;
+}
+
+// ── SIZE OPTIMIZER ──
+async function loadSizing(){
+  const d=await f(`${API}/api/compare-sizes?capital=${CAP}`);if(!d)return;
+  const r=d.results;
+  const best=d.recommendation;
+  document.getElementById('sz-cards').innerHTML=`
+    <div class="card"><div class="label">Best Sharpe</div><div class="value" style="color:var(--gold)">${best.best_sharpe?.actual_size||'—'} positions</div><div class="sub">Sharpe ${best.best_sharpe?.sharpe_ratio||'—'}</div></div>
+    <div class="card"><div class="label">Best CAGR</div><div class="value pos">${best.best_cagr?.actual_size||'—'} positions</div><div class="sub">CAGR ${best.best_cagr?.cagr_pct||'—'}%</div></div>
+    <div class="card"><div class="label">Current Size</div><div class="value">${d.current_size}</div><div class="sub">Set via PORTFOLIO_SIZE env var</div></div>
+  `;
+
+  const tbody=document.querySelector('#szTable tbody');
+  const bestSharpeN=best.best_sharpe?.actual_size;
+  const bestCagrN=best.best_cagr?.actual_size;
+  tbody.innerHTML=r.map(s=>{
+    const isBestS=s.actual_size===bestSharpeN;
+    const isBestC=s.actual_size===bestCagrN;
+    const tag=isBestS&&isBestC?'<span class="badge badge-boost">BEST OVERALL</span>':(isBestS?'<span class="badge badge-momentum">BEST SHARPE</span>':(isBestC?'<span class="badge badge-new">BEST CAGR</span>':''));
+    return`<tr style="${s.actual_size===d.current_size?'background:var(--s2)':''}">
+      <td style="font-weight:600">${s.actual_size}</td>
+      <td class="${s.cagr_pct>=0?'pos':'neg'}">${s.cagr_pct}%</td>
+      <td style="color:var(--gold)">${s.sharpe_ratio}</td>
+      <td class="neg">${s.max_drawdown_pct}%</td>
+      <td class="${s.total_return_pct>=0?'pos':'neg'}">${s.total_return_pct}%</td>
+      <td>${fC(s.final_value)}</td>
+      <td>${tag}</td>
+    </tr>`}).join('');
+
+  const ctx=document.getElementById('szChart').getContext('2d');
+  if(window._sz)window._sz.destroy();
+  window._sz=new Chart(ctx,{type:'bar',data:{labels:r.map(s=>`${s.actual_size} positions`),datasets:[
+    {label:'CAGR %',data:r.map(s=>s.cagr_pct),backgroundColor:'rgba(0,229,255,.7)',borderRadius:6,yAxisID:'y'},
+    {label:'Sharpe',data:r.map(s=>s.sharpe_ratio),backgroundColor:'rgba(255,215,64,.7)',borderRadius:6,yAxisID:'y1'},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6b7fa3'}}},scales:{
+    x:{grid:{display:false},ticks:{color:'#6b7fa3'}},
+    y:{type:'linear',position:'left',grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>v+'%'},title:{display:true,text:'CAGR %',color:'#6b7fa3'}},
+    y1:{type:'linear',position:'right',grid:{display:false},ticks:{color:'#ffd740'},title:{display:true,text:'Sharpe',color:'#ffd740'}},
+  }}});
 }
 
 // ── LIVE PORTFOLIO ──

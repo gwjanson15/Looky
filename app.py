@@ -195,6 +195,51 @@ def compare():
     })
 
 
+@app.route("/api/compare-sizes")
+def compare_sizes():
+    """
+    Backtest the enhanced strategy at different portfolio sizes (5, 8, 10, 12, 15, 20)
+    to find the optimal number of positions.
+    """
+    capital = float(request.args.get("capital", 100000))
+    sizes = [5, 8, 10, 12, 15, 20]
+    results = []
+
+    for n in sizes:
+        port = build_enhanced_portfolio(top_n=n)
+        # Only run if we got enough positions (momentum filter may remove some)
+        actual_n = len(port)
+        if actual_n == 0:
+            continue
+        bt = run_enhanced_backtest(port, capital, 5)
+        s = bt["summary"]
+        results.append({
+            "target_size": n,
+            "actual_size": actual_n,
+            "cagr_pct": s["cagr_pct"],
+            "sharpe_ratio": s["sharpe_ratio"],
+            "max_drawdown_pct": s["max_drawdown_pct"],
+            "total_return_pct": s["total_return_pct"],
+            "final_value": s["final_value"],
+        })
+
+    # Find best by Sharpe
+    best_sharpe = max(results, key=lambda r: r["sharpe_ratio"]) if results else None
+    best_cagr = max(results, key=lambda r: r["cagr_pct"]) if results else None
+
+    return jsonify({
+        "capital": capital,
+        "results": results,
+        "recommendation": {
+            "best_sharpe": best_sharpe,
+            "best_cagr": best_cagr,
+            "note": "Best Sharpe balances return and risk. Best CAGR maximizes raw growth but may have higher drawdowns.",
+        },
+        "current_size": len(PORTFOLIO),
+        "set_via": "PORTFOLIO_SIZE env var in Railway (default: 10)",
+    })
+
+
 # ══════════════════════════════════════════════════════════════
 # ALPACA TRADING — Same integration as base strategy
 # ══════════════════════════════════════════════════════════════

@@ -249,16 +249,19 @@ def should_rebalance(current_weight, target_weight):
 # PORTFOLIO CONSTRUCTION — Combines all 6 layers
 # ══════════════════════════════════════════════════════════════
 
-def build_enhanced_portfolio():
+def build_enhanced_portfolio(top_n=None):
     """
     Full pipeline: consensus → best ideas → boost/penalize → momentum → normalize.
-    Returns the final portfolio with weights and detailed scoring.
+    top_n controls how many positions to hold (default from PORTFOLIO_SIZE env var, or 10).
     """
+    if top_n is None:
+        top_n = int(os.environ.get("PORTFOLIO_SIZE", 10))
+
     # Layer 1: Consensus scoring
     consensus = build_consensus()
 
-    # Layer 2: Select top 10 best ideas
-    best_ideas = select_best_ideas(consensus, top_n=10)
+    # Layer 2: Select top N best ideas
+    best_ideas = select_best_ideas(consensus, top_n=top_n)
 
     # Layer 3-5: Apply adjustments
     portfolio = []
