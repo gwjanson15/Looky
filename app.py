@@ -1098,60 +1098,6 @@ def _auto_deploy_on_startup():
 _auto_deploy_on_startup()
 
 
-# ── SEC EDGAR Background Polling ─────────────────────────────
-
-def _on_new_filing(result):
-    """
-    Callback when the SEC poller detects a new 13F filing.
-    Updates the portfolio weights in-memory.
-    """
-    global RAW_HOLDINGS, TOP_15, TOTAL_TOP15_VALUE, ELIGIBLE
-    global DATA_SOURCE, FILING_DATE, EXITED_TICKERS
-
-    print(f"[SEC Poller Callback] New filing detected: {result.get('filing_date')}")
-
-    prev_tickers = {h["ticker"] for h in TOP_15}
-
-    RAW_HOLDINGS = result["holdings"]
-    DATA_SOURCE = result.get("source", "sec_edgar_live")
-    FILING_DATE = result.get("filing_date", FILING_DATE)
-
-    RAW_HOLDINGS.sort(key=lambda h: h["value_k"], reverse=True)
-    ELIGIBLE = [h for h in RAW_HOLDINGS if h["ticker"] not in EXCLUDED_TICKERS]
-    TOP_15 = ELIGIBLE[:15]
-
-    TOTAL_TOP15_VALUE = sum(h["value_k"] for h in TOP_15)
-    for h in TOP_15:
-        h["weight"] = round(h["value_k"] / TOTAL_TOP15_VALUE, 6) if TOTAL_TOP15_VALUE > 0 else 0
-
-    current_tickers = {h["ticker"] for h in TOP_15}
-    EXITED_TICKERS = prev_tickers - current_tickers - EXCLUDED_TICKERS
-
-    new_tickers = current_tickers - prev_tickers
-    if new_tickers:
-        print(f"[SEC Poller Callback] New entrants: {new_tickers}")
-    if EXITED_TICKERS:
-        print(f"[SEC Poller Callback] Exits: {EXITED_TICKERS}")
-    print(f"[SEC Poller Callback] Portfolio updated: {len(TOP_15)} holdings, source={DATA_SOURCE}")
-
-
-try:
-    from sec_updater import start_polling, get_poll_status
-    start_polling(callback=_on_new_filing)
-except Exception as e:
-    print(f"[SEC Poller] Failed to start: {e}")
-
-
-@app.route("/api/polling-status")
-def polling_status():
-    """Check the status of the SEC EDGAR background poller."""
-    try:
-        from sec_updater import get_poll_status
-        return jsonify(get_poll_status())
-    except Exception as e:
-        return jsonify({"error": str(e), "polling_active": False})
-
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=False)

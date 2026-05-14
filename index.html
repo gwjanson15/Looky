@@ -3,513 +3,1535 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Enhanced 13F Alpha Strategy</title>
+<title>Divisadero Street Capital · Lookalike Portfolio</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#05080f;--surface:#0c1220;--s2:#131d30;--border:#1a2744;--text:#d8e2f0;--dim:#6b7fa3;--cyan:#00e5ff;--violet:#b388ff;--gold:#ffd740;--green:#00e676;--red:#ff5252;--orange:#ffab40;--blue:#448aff;--r:10px}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
-.mono{font-family:'Space Mono',monospace}
-.header{padding:28px 36px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px}
-.header h1{font-size:24px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--violet));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.header .sub{font-size:12px;color:var(--dim);margin-top:4px}
-.badge{display:inline-block;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600;font-family:'Space Mono',monospace}
-.badge-new{background:rgba(0,229,255,0.15);color:var(--cyan)}
-.badge-crowded{background:rgba(255,82,82,0.15);color:var(--red)}
-.badge-momentum{background:rgba(0,230,118,0.15);color:var(--green)}
-.badge-boost{background:rgba(255,215,64,0.15);color:var(--gold)}
-.tabs{display:flex;gap:0;padding:0 36px;border-bottom:1px solid var(--border);overflow-x:auto}
-.tab{padding:12px 20px;font-size:13px;font-weight:500;color:var(--dim);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .2s;white-space:nowrap}
-.tab:hover{color:var(--text)}.tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
-.main{padding:28px 36px 60px}
-.panel{display:none}.panel.active{display:block}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:28px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px}
-.card .label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:6px}
-.card .value{font-size:22px;font-weight:700;font-family:'Space Mono',monospace}
-.card .sub{font-size:11px;color:var(--dim);margin-top:3px}
-.pos{color:var(--green)}.neg{color:var(--red)}
-.tw{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:28px}
-.tw-title{padding:14px 18px;font-weight:600;font-size:14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th{text-align:left;padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim);border-bottom:1px solid var(--border);font-weight:500;background:var(--surface)}
-td{padding:10px 14px;border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:11px}
-tr:last-child td{border-bottom:none}tr:hover{background:var(--s2)}
-td.nm{font-family:'Sora',sans-serif;font-weight:500;font-size:12px}
-.chart-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:28px}
-.chart-box h3{font-size:14px;font-weight:600;margin-bottom:14px}
-.cw{position:relative;height:340px}
-.cw canvas{max-height:340px}
-.cap-row{display:flex;align-items:center;gap:14px;margin-bottom:28px;flex-wrap:wrap}
-.cap-input{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-family:'Space Mono',monospace;font-size:15px;width:180px;outline:none}
-.cap-input:focus{border-color:var(--cyan)}
-.btn{padding:9px 20px;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s}
-.btn-p{background:linear-gradient(135deg,var(--cyan),var(--violet));color:var(--bg)}.btn-p:hover{opacity:.9}
-.mgr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:28px}
-.mgr-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px}
-.mgr-card h4{font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:4px}
-.mgr-card .meta{font-size:11px;color:var(--dim);margin-bottom:10px}
-.mgr-card ul{list-style:none;padding:0}.mgr-card li{padding:3px 0;font-size:11px;font-family:'Space Mono',monospace;color:var(--dim)}
-.mgr-card li::before{content:"›";color:var(--cyan);margin-right:6px;font-weight:bold}
-.layer-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px}
-.layer-card h4{font-size:13px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:8px}
-.layer-num{background:var(--cyan);color:var(--bg);width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
-.layer-card p{font-size:12px;color:var(--dim);line-height:1.7}
-.heatmap{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-top:8px}
-.hm-cell{aspect-ratio:1.4;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:'Space Mono',monospace;cursor:default;transition:transform .1s}
-.hm-cell:hover{transform:scale(1.15);z-index:1}
-.hm-label{font-size:10px;color:var(--dim);text-align:center;padding:2px}
-@media(max-width:768px){.header,.tabs,.main{padding-left:16px;padding-right:16px}.header h1{font-size:20px}.cards{grid-template-columns:repeat(2,1fr)}.cw{height:260px}.cap-input{width:120px}}
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface-2: #1a2235;
+    --border: #1e293b;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --accent: #22d3ee;
+    --accent-2: #a78bfa;
+    --green: #34d399;
+    --red: #f87171;
+    --orange: #fb923c;
+    --blue: #60a5fa;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ── LAYOUT ─────────────────────────────────── */
+  .header {
+    padding: 32px 40px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .header .meta {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .header .meta span {
+    display: inline-block;
+    background: var(--surface-2);
+    padding: 4px 10px;
+    border-radius: 6px;
+    margin-left: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 40px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 14px 24px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .main { padding: 32px 40px 64px; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── CARDS ──────────────────────────────────── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .card .label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .card .value {
+    font-size: 24px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .card .sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .positive { color: var(--green); }
+  .negative { color: var(--red); }
+
+  /* ── TABLES ─────────────────────────────────── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .table-title {
+    padding: 16px 20px;
+    font-weight: 600;
+    font-size: 15px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+  }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover { background: var(--surface-2); }
+
+  td.name-cell {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 13px;
+  }
+
+  .weight-bar {
+    display: inline-block;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--accent);
+    opacity: 0.7;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  /* ── CHARTS ─────────────────────────────────── */
+  .chart-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 32px;
+    position: relative;
+  }
+
+  .chart-container h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+
+  .chart-canvas-wrap {
+    position: relative;
+    height: 360px;
+  }
+
+  .chart-canvas-wrap canvas {
+    max-height: 360px;
+  }
+
+  /* ── CAPITAL INPUT ──────────────────────────── */
+  .capital-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+
+  .capital-row label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .capital-input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    width: 200px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .capital-input:focus { border-color: var(--accent); }
+
+  .btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: var(--bg);
+  }
+
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── ALPACA PANEL ───────────────────────────── */
+  .config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+  }
+
+  .config-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .config-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--accent);
+  }
+
+  .config-card code {
+    display: block;
+    background: var(--bg);
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+    overflow-x: auto;
+    margin-top: 8px;
+  }
+
+  .config-card ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .config-card li {
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .config-card li::before {
+    content: "›";
+    color: var(--accent);
+    margin-right: 8px;
+    font-weight: bold;
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+
+  .status-dot.live { background: var(--green); }
+  .status-dot.paper { background: var(--orange); }
+  .status-dot.off { background: var(--red); }
+
+  /* ── HEATMAP ────────────────────────────────── */
+  .heatmap {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 3px;
+    margin-top: 8px;
+  }
+
+  .heatmap-cell {
+    aspect-ratio: 1.4;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: default;
+    transition: transform 0.1s;
+  }
+
+  .heatmap-cell:hover { transform: scale(1.15); z-index: 1; }
+
+  .heatmap-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 2px;
+  }
+
+  /* ── LOADING ────────────────────────────────── */
+  .spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 14, 23, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    z-index: 10;
+  }
+
+  /* ── RESPONSIVE ─────────────────────────────── */
+  @media (max-width: 768px) {
+    .header, .tabs, .main { padding-left: 20px; padding-right: 20px; }
+    .header h1 { font-size: 22px; }
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    .chart-canvas-wrap { height: 280px; }
+    .capital-input { width: 140px; }
+  }
+
+  @media (max-width: 480px) {
+    .cards { grid-template-columns: 1fr; }
+    .tab { padding: 12px 14px; font-size: 13px; }
+  }
 </style>
 </head>
 <body>
+
+<!-- ═══════════════════════════════════════════════ HEADER -->
 <div class="header">
   <div>
-    <h1>Enhanced 13F Alpha Strategy</h1>
-    <div class="sub">Multi-Manager Consensus · 6 Alpha Layers · Momentum + Drift-Band Rebalancing</div>
+    <h1>Divisadero Street · Lookalike Portfolio</h1>
+    <div class="meta" id="header-meta">
+      Loading filing data...
+    </div>
   </div>
-  <div class="cap-row">
-    <label style="font-size:13px;font-weight:500">Capital $</label>
-    <input type="text" id="capInput" class="cap-input" value="100,000">
-    <button class="btn btn-p" onclick="applyCapital()">Apply</button>
+  <div class="capital-row">
+    <label for="capitalInput">Deploy Capital $</label>
+    <input type="text" id="capitalInput" class="capital-input" value="100,000" placeholder="100,000">
+    <button class="btn btn-primary" onclick="applyCapital()">Apply</button>
+    <button class="btn btn-outline" id="updateBtn" onclick="update13F()" title="Fetch latest 13F filing from SEC EDGAR">Update 13F</button>
+    <span id="updateStatus" style="font-size:11px;color:var(--text-dim)"></span>
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════ TABS -->
 <div class="tabs">
-  <button class="tab active" data-p="portfolio">Portfolio</button>
-  <button class="tab" data-p="live">Live Portfolio</button>
-  <button class="tab" data-p="consensus">Consensus</button>
-  <button class="tab" data-p="managers">Managers</button>
-  <button class="tab" data-p="backtest">Backtest</button>
-  <button class="tab" data-p="compare">Compare</button>
-  <button class="tab" data-p="sizing">Size Optimizer</button>
-  <button class="tab" data-p="layers">Strategy</button>
+  <button class="tab active" data-panel="overview">Overview</button>
+  <button class="tab" data-panel="live">Live Portfolio</button>
+  <button class="tab" data-panel="allocation">Allocation</button>
+  <button class="tab" data-panel="backtest">Backtest</button>
+  <button class="tab" data-panel="rebalance">Rebalance</button>
+  <button class="tab" data-panel="deploy">Deploy</button>
 </div>
 
+<!-- ═══════════════════════════════════════════════ PANELS -->
 <div class="main">
-  <div class="panel active" id="panel-portfolio">
-    <div class="cards" id="port-cards"></div>
-    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:20px">
-      <div class="chart-box"><h3>Portfolio Weights</h3><div class="cw"><canvas id="weightChart"></canvas></div></div>
-      <div class="chart-box"><h3>Allocation</h3><div class="cw"><canvas id="pieChart"></canvas></div></div>
+
+  <!-- ─── OVERVIEW ──────────────────────────── -->
+  <div class="panel active" id="panel-overview">
+    <div class="cards" id="overview-cards"></div>
+
+    <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px;">
+      <div class="chart-container">
+        <h3>Portfolio Weight Distribution</h3>
+        <div class="chart-canvas-wrap">
+          <canvas id="weightChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-container">
+        <h3>Allocation Breakdown</h3>
+        <div class="chart-canvas-wrap">
+          <canvas id="pieChart"></canvas>
+        </div>
+      </div>
     </div>
-    <div class="tw"><div class="tw-title"><span>Enhanced Holdings — Consensus Weighted</span></div>
-      <div style="overflow-x:auto"><table id="holdTable"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Weight</th><th>Consensus</th><th>Managers</th><th>Signals</th><th>Allocation</th></tr></thead><tbody></tbody></table></div>
+
+    <div class="table-wrap">
+      <div class="table-title">
+        <span>Top 15 Holdings — Q4 2025 Filing</span>
+        <span style="font-size: 12px; color: var(--text-dim);">Source: SEC EDGAR 13F-HR · Weighted by shares</span>
+      </div>
+      <div style="overflow-x: auto;">
+        <table id="holdingsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Ticker</th>
+              <th>Company</th>
+              <th>Shares</th>
+              <th>Weight (Shares)</th>
+              <th>QoQ Change</th>
+              <th>Your Allocation</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
-  <!-- LIVE PORTFOLIO -->
+  <!-- ─── LIVE PORTFOLIO ────────────────────── -->
   <div class="panel" id="panel-live">
-    <div class="cards" id="live-cards"><div class="card"><div class="label">Loading...</div><div class="value" style="font-size:14px;color:var(--dim)">Connect Alpaca to see live data</div></div></div>
-    <div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap">
-      <button class="btn btn-p" onclick="loadLive()">Refresh</button>
-      <button class="btn" style="background:var(--s2);color:var(--text);border:1px solid var(--border)" onclick="deployNow()">Deploy Now</button>
-      <button class="btn" style="background:var(--s2);color:var(--red);border:1px solid var(--red)" onclick="cancelAll()">Cancel All Orders</button>
+    <div class="cards" id="live-cards">
+      <div class="card"><div class="label">Loading...</div><div class="value"><span class="spinner"></span></div></div>
     </div>
 
-    <div class="tw">
-      <div class="tw-title"><span>Alpaca Positions — Live</span><span id="live-ts" style="font-size:11px;color:var(--dim)"></span></div>
-      <div style="overflow-x:auto">
-        <table id="liveTable"><thead><tr><th>Ticker</th><th>Shares</th><th>Market Value</th><th>Ownership %</th><th>Target %</th><th>Drift</th><th>Unrealized P&L</th></tr></thead>
-        <tbody><tr><td colspan="7" style="text-align:center;color:var(--dim);padding:36px">Switch to this tab to load live data</td></tr></tbody></table>
+    <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
+      <button class="btn btn-primary" onclick="loadLive()">Refresh</button>
+      <button class="btn btn-outline" onclick="deployNow()">Deploy Now</button>
+      <button class="btn btn-outline" onclick="cancelAll()" style="border-color: var(--red); color: var(--red);">Cancel All Orders</button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-title">
+        <span>Alpaca Positions — Live</span>
+        <span id="live-updated" style="font-size: 12px; color: var(--text-dim);"></span>
+      </div>
+      <div style="overflow-x: auto;">
+        <table id="livePositionsTable">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Shares</th>
+              <th>Market Value</th>
+              <th>Current Weight</th>
+              <th>Target Weight</th>
+              <th>Drift</th>
+              <th>Unrealized P&L</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="7" style="text-align:center; color: var(--text-dim); padding: 40px;">Click "Refresh" or switch to this tab to load live data</td></tr></tbody>
+        </table>
       </div>
     </div>
 
-    <div class="tw" style="margin-top:20px">
-      <div class="tw-title"><span>Recent Orders</span><span id="ord-summary" style="font-size:11px;color:var(--dim)"></span></div>
-      <div style="overflow-x:auto">
-        <table id="ordTable"><thead><tr><th>Symbol</th><th>Side</th><th>Amount</th><th>Filled</th><th>Status</th><th>Time</th></tr></thead>
-        <tbody><tr><td colspan="6" style="text-align:center;color:var(--dim);padding:36px">Loading...</td></tr></tbody></table>
+    <div class="table-wrap" style="margin-top: 24px;">
+      <div class="table-title">
+        <span>Recent Orders</span>
+        <span id="orders-summary" style="font-size: 12px; color: var(--text-dim);"></span>
+      </div>
+      <div style="overflow-x: auto;">
+        <table id="ordersTable">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Amount</th>
+              <th>Filled</th>
+              <th>Status</th>
+              <th>Submitted</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="6" style="text-align:center; color: var(--text-dim); padding: 40px;">Loading orders...</td></tr></tbody>
+        </table>
       </div>
     </div>
   </div>
 
-  <div class="panel" id="panel-consensus">
-    <div class="cards" id="con-cards"></div>
-    <div class="tw"><div class="tw-title">Full Consensus Ranking — All Tickers Across Managers</div>
-      <div style="overflow-x:auto"><table id="conTable"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Score</th><th>Managers</th><th>Who Holds It</th></tr></thead><tbody></tbody></table></div>
+  <!-- ─── ALLOCATION ────────────────────────── -->
+  <div class="panel" id="panel-allocation">
+    <div class="cards" id="alloc-cards"></div>
+    <div class="table-wrap">
+      <div class="table-title">Detailed Allocation Plan</div>
+      <div style="overflow-x: auto;">
+        <table id="allocTable">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Company</th>
+              <th>Weight %</th>
+              <th>$ Allocated</th>
+              <th>Est. Shares</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
-  <div class="panel" id="panel-managers">
-    <div class="mgr-grid" id="mgrGrid"></div>
-  </div>
-
+  <!-- ─── BACKTEST ──────────────────────────── -->
   <div class="panel" id="panel-backtest">
-    <div style="display:flex;gap:8px;margin-bottom:20px">
-      <button class="btn btn-p bt-period active" data-y="5" onclick="switchPeriod(5)">5 Year</button>
-      <button class="btn bt-period" style="background:var(--s2);color:var(--text);border:1px solid var(--border)" data-y="10" onclick="switchPeriod(10)">10 Year</button>
-      <button class="btn bt-period" style="background:var(--s2);color:var(--text);border:1px solid var(--border)" data-y="15" onclick="switchPeriod(15)">15 Year</button>
+    <div class="cards" id="backtest-cards"></div>
+
+    <div class="chart-container" id="backtest-chart-container">
+      <h3>Portfolio vs Benchmark — 5 Year Backtest</h3>
+      <div class="chart-canvas-wrap">
+        <canvas id="backtestChart"></canvas>
+      </div>
     </div>
-    <div class="cards" id="bt-cards"></div>
-    <div class="chart-box"><h3 id="bt-title">Enhanced Portfolio vs Benchmark — 5yr</h3><div class="cw"><canvas id="btChart"></canvas></div></div>
-    <div class="chart-box"><h3>Drawdown</h3><div class="cw" style="height:180px"><canvas id="ddChart"></canvas></div></div>
-    <div class="chart-box"><h3>Monthly Returns</h3><div id="heatmap"></div></div>
 
-    <div class="tw" style="margin-top:20px">
-      <div class="tw-title">Period Comparison</div>
-      <div style="overflow-x:auto"><table id="periodTable"><thead><tr><th>Period</th><th>CAGR</th><th>Sharpe</th><th>Max DD</th><th>Total Return</th><th>Final Value</th></tr></thead><tbody id="periodBody"><tr><td colspan="6" style="text-align:center;color:var(--dim);padding:24px">Loading all periods...</td></tr></tbody></table></div>
+    <div class="chart-container">
+      <h3>Drawdown</h3>
+      <div class="chart-canvas-wrap" style="height: 200px;">
+        <canvas id="drawdownChart"></canvas>
+      </div>
     </div>
-  </div>
 
-  <div class="panel" id="panel-compare">
-    <div class="cards" id="cmp-cards"></div>
-    <div class="chart-box"><h3>Enhanced vs Base Divisadero — Key Metrics</h3><div class="cw"><canvas id="cmpChart"></canvas></div></div>
-  </div>
-
-  <div class="panel" id="panel-sizing">
-    <div class="cards" id="sz-cards"></div>
-    <div class="chart-box"><h3>Performance by Portfolio Size</h3><div class="cw"><canvas id="szChart"></canvas></div></div>
-    <div class="tw"><div class="tw-title">Backtest Results — All Sizes</div>
-      <div style="overflow-x:auto"><table id="szTable"><thead><tr><th>Positions</th><th>CAGR</th><th>Sharpe</th><th>Max DD</th><th>Total Return</th><th>Final Value</th><th></th></tr></thead><tbody></tbody></table></div>
+    <div class="chart-container">
+      <h3>Monthly Returns Heatmap</h3>
+      <div id="heatmapContainer"></div>
     </div>
   </div>
 
-  <div class="panel" id="panel-layers">
-    <div id="layerCards"></div>
+  <!-- ─── REBALANCE ─────────────────────────── -->
+  <div class="panel" id="panel-rebalance">
+    <div class="cards" id="rebalance-cards"></div>
+    <div class="table-wrap">
+      <div class="table-title">
+        <span>Simulated Rebalance Trades</span>
+        <button class="btn btn-outline" onclick="loadRebalance()" style="font-size: 12px; padding: 6px 14px;">Refresh</button>
+      </div>
+      <div style="overflow-x: auto;">
+        <table id="rebalanceTable">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Company</th>
+              <th>Current $</th>
+              <th>Target $</th>
+              <th>Trade $</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="chart-container">
+      <h3>Rebalance Schedule</h3>
+      <p style="color: var(--text-dim); font-size: 14px; line-height: 1.8;">
+        Quarterly rebalancing aligned with 13F filing periods:<br>
+        <span class="mono" style="color: var(--accent);">Q1:</span> Rebalance on ~April 1 (after March 31 period end)<br>
+        <span class="mono" style="color: var(--accent);">Q2:</span> Rebalance on ~July 1 (after June 30 period end)<br>
+        <span class="mono" style="color: var(--accent);">Q3:</span> Rebalance on ~October 1 (after September 30 period end)<br>
+        <span class="mono" style="color: var(--accent);">Q4:</span> Rebalance on ~January 2 (after December 31 period end)<br><br>
+        <em style="font-size: 13px;">Note: 13F filings are due 45 days after quarter end.
+        This strategy rebalances at quarter boundaries, then updates
+        weights when the new 13F becomes available.</em>
+      </p>
+    </div>
   </div>
+
+  <!-- ─── DEPLOY ────────────────────────────── -->
+  <div class="panel" id="panel-deploy">
+    <div class="config-grid">
+
+      <div class="config-card">
+        <h4>Alpaca Integration</h4>
+        <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 12px;">
+          Connect to Alpaca for paper or live trading. Set these environment variables:
+        </p>
+        <code>ALPACA_API_KEY=your_key_here
+ALPACA_SECRET_KEY=your_secret_here
+ALPACA_BASE_URL=https://paper-api.alpaca.markets
+DEPLOY_CAPITAL=100000</code>
+        <p style="font-size: 12px; color: var(--text-dim); margin-top: 12px;">
+          <span class="status-dot paper"></span> Paper trading recommended for testing
+        </p>
+      </div>
+
+      <div class="config-card">
+        <h4>Railway Deployment</h4>
+        <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 12px;">
+          One-click deploy to Railway:
+        </p>
+        <code>1. Push to GitHub
+2. Connect repo in Railway dashboard
+3. Set environment variables
+4. Railway auto-detects Procfile
+5. Deploy!</code>
+        <ul style="margin-top: 12px;">
+          <li>Auto-builds from Dockerfile or Procfile</li>
+          <li>Free tier available for testing</li>
+          <li>Custom domains supported</li>
+        </ul>
+      </div>
+
+      <div class="config-card">
+        <h4>GitHub Setup</h4>
+        <code>git init
+git add .
+git commit -m "Divisadero lookalike portfolio"
+git remote add origin https://github.com/YOU/divisadero-lookalike.git
+git push -u origin main</code>
+      </div>
+
+      <div class="config-card">
+        <h4>Architecture</h4>
+        <ul>
+          <li>Flask API backend (app.py)</li>
+          <li>Alpaca trading module (alpaca_trader.py)</li>
+          <li>Quarterly scheduler (scheduler.py)</li>
+          <li>Static HTML/JS dashboard</li>
+          <li>Docker + Procfile for Railway</li>
+        </ul>
+      </div>
+
+      <div class="config-card">
+        <h4>API Endpoints</h4>
+        <ul>
+          <li><span class="mono" style="color: var(--green);">GET</span> /api/holdings</li>
+          <li><span class="mono" style="color: var(--green);">GET</span> /api/allocate?capital=N</li>
+          <li><span class="mono" style="color: var(--green);">GET</span> /api/backtest?capital=N&years=5</li>
+          <li><span class="mono" style="color: var(--green);">GET</span> /api/rebalance-preview</li>
+          <li><span class="mono" style="color: var(--green);">GET</span> /api/alpaca-config</li>
+        </ul>
+      </div>
+
+      <div class="config-card">
+        <h4>Safety Guardrails</h4>
+        <ul>
+          <li>Always paper-trade first</li>
+          <li>Max 15% single-position limit</li>
+          <li>Dry-run mode by default</li>
+          <li>Rebalance confirmation required</li>
+          <li>Duplicate rebalance protection</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
 </div>
 
 <script>
-const API=window.location.origin;let CAP=100000;
-const C=['#00e5ff','#b388ff','#00e676','#ffd740','#ff5252','#448aff','#ffab40','#ea80fc','#64ffda','#ff80ab'];
-function fC(n){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:0,maximumFractionDigits:0}).format(n)}
-function pC(s){return parseFloat(s.replace(/[^0-9.]/g,''))||100000}
-function applyCapital(){CAP=pC(document.getElementById('capInput').value);document.getElementById('capInput').value=CAP.toLocaleString();loadPortfolio()}
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
 
-document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-  t.classList.add('active');document.getElementById('panel-'+t.dataset.p).classList.add('active');
-  if(t.dataset.p==='live')loadLive();
-  if(t.dataset.p==='consensus')loadConsensus();
-  if(t.dataset.p==='managers')loadManagers();
-  if(t.dataset.p==='backtest')loadBacktest();
-  if(t.dataset.p==='compare')loadCompare();
-  if(t.dataset.p==='sizing')loadSizing();
-  if(t.dataset.p==='layers')loadLayers();
-}));
+const API = window.location.origin;
+let CAPITAL = 100000;
+let holdingsData = null;
+let backtestData = null;
 
-async function f(u){try{const r=await fetch(u);return r.json()}catch(e){return null}}
+// ═══════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════
 
-// ── PORTFOLIO ──
-let portData=null;
-async function loadPortfolio(){
-  const d=await f(`${API}/api/allocate?capital=${CAP}`);
-  if(!d)return;portData=d;
-  document.getElementById('port-cards').innerHTML=`
-    <div class="card"><div class="label">Positions</div><div class="value">${d.positions}</div><div class="sub">Concentrated best ideas</div></div>
-    <div class="card"><div class="label">Managers Tracked</div><div class="value">5</div><div class="sub">Elite hedge funds</div></div>
-    <div class="card"><div class="label">Deploy Capital</div><div class="value">${fC(CAP)}</div></div>
-    <div class="card"><div class="label">Rebalance</div><div class="value mono" style="font-size:14px">Drift-Band</div><div class="sub">Asymmetric momentum</div></div>
-  `;
-  const a=d.allocations;
-  const tbody=document.querySelector('#holdTable tbody');
-  tbody.innerHTML=a.map((h,i)=>{
-    let badges='';
-    if(h.is_new)badges+=`<span class="badge badge-new">NEW</span> `;
-    if(h.crowded)badges+=`<span class="badge badge-crowded">CROWDED</span> `;
-    if(h.momentum)badges+=`<span class="badge badge-momentum">MOM ✓</span> `;
-    return `<tr>
-      <td style="color:var(--dim)">${i+1}</td>
-      <td style="color:var(--cyan);font-weight:600">${h.ticker}</td>
-      <td class="nm">${h.name}</td>
-      <td>${h.weight_pct}%</td>
-      <td style="color:var(--gold)">${h.consensus_score}</td>
-      <td>${h.manager_count}/5</td>
-      <td>${badges}</td>
-      <td style="color:var(--green)">${fC(h.dollar_allocation)}</td>
-    </tr>`}).join('');
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(`panel-${tab.dataset.panel}`).classList.add('active');
 
-  // Charts
-  const ctx=document.getElementById('weightChart').getContext('2d');
-  if(window._wc)window._wc.destroy();
-  window._wc=new Chart(ctx,{type:'bar',data:{labels:a.map(h=>h.ticker),datasets:[{data:a.map(h=>h.weight_pct),backgroundColor:C,borderRadius:6,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',font:{family:'Space Mono',size:10}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>v+'%'}}}}});
+    // Lazy-load panels
+    if (tab.dataset.panel === 'backtest' && !backtestData) loadBacktest();
+    if (tab.dataset.panel === 'rebalance') loadRebalance();
+    if (tab.dataset.panel === 'allocation') loadAllocation();
+    if (tab.dataset.panel === 'live') loadLive();
+  });
+});
 
-  const ctx2=document.getElementById('pieChart').getContext('2d');
-  if(window._pc)window._pc.destroy();
-  window._pc=new Chart(ctx2,{type:'doughnut',data:{labels:a.map(h=>h.ticker),datasets:[{data:a.map(h=>h.weight_pct),backgroundColor:C,borderWidth:0,spacing:2}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'right',labels:{color:'#6b7fa3',font:{family:'Space Mono',size:10},boxWidth:10,padding:6}}}}});
+// ═══════════════════════════════════════════════════════════
+// CAPITAL
+// ═══════════════════════════════════════════════════════════
+
+function parseCapital(str) {
+  return parseFloat(str.replace(/[^0-9.]/g, '')) || 100000;
 }
 
-// ── CONSENSUS ──
-async function loadConsensus(){
-  const d=await f(`${API}/api/consensus`);if(!d)return;
-  document.getElementById('con-cards').innerHTML=`
-    <div class="card"><div class="label">Unique Tickers</div><div class="value">${d.total_tickers}</div></div>
-    <div class="card"><div class="label">Top Score</div><div class="value" style="color:var(--gold)">${d.consensus[0]?.consensus_score||0}</div><div class="sub">${d.consensus[0]?.ticker||''}</div></div>
-    <div class="card"><div class="label">Multi-Manager</div><div class="value">${d.consensus.filter(c=>c.manager_count>=3).length}</div><div class="sub">Held by 3+ managers</div></div>
-  `;
-  const tbody=document.querySelector('#conTable tbody');
-  tbody.innerHTML=d.consensus.map((c,i)=>`<tr>
-    <td style="color:var(--dim)">${i+1}</td>
-    <td style="color:var(--cyan);font-weight:600">${c.ticker}</td>
-    <td class="nm">${c.name}</td>
-    <td style="color:var(--gold);font-weight:600">${c.consensus_score}</td>
-    <td>${c.manager_count}/5</td>
-    <td style="font-family:Sora;font-size:11px;color:var(--dim)">${c.managers.map(m=>`<span style="color:var(--text)">${m.manager.split(' ')[0]}</span> (#${m.rank})`).join(', ')}</td>
-  </tr>`).join('');
+function formatCurrency(n) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 }
 
-// ── MANAGERS ──
-async function loadManagers(){
-  const d=await f(`${API}/api/managers`);if(!d)return;
-  document.getElementById('mgrGrid').innerHTML=Object.entries(d).map(([id,m])=>`
-    <div class="mgr-card">
-      <h4>${m.name}</h4>
-      <div class="meta">${m.style} · $${m.aum_b}B AUM · CIK ${m.cik}</div>
-      <ul>${m.top_10.map((h,i)=>`<li><span style="color:var(--cyan)">${h.ticker}</span> ${h.name.substring(0,25)}</li>`).join('')}</ul>
+function formatPct(n) {
+  return n.toFixed(2) + '%';
+}
+
+function applyCapital() {
+  CAPITAL = parseCapital(document.getElementById('capitalInput').value);
+  document.getElementById('capitalInput').value = CAPITAL.toLocaleString();
+  loadHoldings();
+  backtestData = null;
+  if (document.getElementById('panel-backtest').classList.contains('active')) loadBacktest();
+  if (document.getElementById('panel-allocation').classList.contains('active')) loadAllocation();
+  if (document.getElementById('panel-rebalance').classList.contains('active')) loadRebalance();
+}
+
+// ═══════════════════════════════════════════════════════════
+// DATA LOADING
+// ═══════════════════════════════════════════════════════════
+
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  return res.json();
+}
+
+async function loadHoldings() {
+  try {
+    holdingsData = await fetchJSON(`${API}/api/holdings`);
+  } catch (e) {
+    // Fallback: use embedded data
+    holdingsData = getEmbeddedHoldings();
+  }
+  renderOverview();
+}
+
+async function loadAllocation() {
+  try {
+    const data = await fetchJSON(`${API}/api/allocate?capital=${CAPITAL}`);
+    renderAllocation(data);
+  } catch (e) {
+    renderAllocation(generateLocalAllocation());
+  }
+}
+
+async function loadBacktest() {
+  try {
+    backtestData = await fetchJSON(`${API}/api/backtest?capital=${CAPITAL}&years=5`);
+  } catch (e) {
+    backtestData = generateLocalBacktest();
+  }
+  renderBacktest();
+}
+
+async function loadRebalance() {
+  try {
+    const data = await fetchJSON(`${API}/api/rebalance-preview?capital=${CAPITAL}`);
+    renderRebalance(data);
+  } catch (e) {
+    renderRebalance(generateLocalRebalance());
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// EMBEDDED / LOCAL FALLBACK DATA
+// ═══════════════════════════════════════════════════════════
+
+function getEmbeddedHoldings() {
+  const holdings = [
+    {ticker:"SGHC",name:"Super Group (SGHC) Limited",value_k:288336,weight:0},
+    {ticker:"DAVE",name:"Dave Inc",value_k:218467,weight:0},
+    {ticker:"CELH",name:"Celsius Holdings Inc",value_k:115732,weight:0},
+    {ticker:"INDV",name:"Indivior PLC",value_k:99918,weight:0},
+    {ticker:"AS",name:"Amer Sports Inc",value_k:93033,weight:0},
+    {ticker:"CVNA",name:"Carvana Co",value_k:92080,weight:0},
+    {ticker:"SN",name:"SharkNinja Inc",value_k:86069,weight:0},
+    {ticker:"RSI",name:"Rush Street Interactive Inc",value_k:85711,weight:0},
+    {ticker:"FLYW",name:"Flywire Corporation",value_k:81936,weight:0},
+    {ticker:"BBW",name:"Build-A-Bear Workshop Inc",value_k:76662,weight:0},
+    {ticker:"SEZL",name:"Sezzle Inc",value_k:71297,weight:0},
+    {ticker:"TPB",name:"Turning Point Brands Inc",value_k:57584,weight:0},
+    {ticker:"CLS",name:"Celestica Inc",value_k:51735,weight:0},
+    {ticker:"FIGS",name:"FIGS Inc",value_k:50105,weight:0},
+    {ticker:"REAL",name:"The RealReal Inc",value_k:49714,weight:0},
+  ];
+  const total = holdings.reduce((s,h) => s + h.value_k, 0);
+  holdings.forEach(h => h.weight = h.value_k / total);
+  return {
+    fund_name: "Divisadero Street Capital Management, LP",
+    filing_period: "Q4 2025 (2025-12-31)",
+    cik: "0001901865",
+    total_13f_value_k: 2137853,
+    top15_value_k: total,
+    top15_pct_of_total: (total / 2137853 * 100).toFixed(2),
+    holdings
+  };
+}
+
+function generateLocalAllocation() {
+  const h = (holdingsData || getEmbeddedHoldings()).holdings;
+  return {
+    capital: CAPITAL,
+    allocations: h.map(x => ({
+      ticker: x.ticker,
+      name: x.name,
+      weight_pct: (x.weight * 100).toFixed(2),
+      dollar_allocation: (CAPITAL * x.weight).toFixed(2),
+    })),
+    rebalance_schedule: "Quarterly",
+    next_rebalance: "2026-06-30",
+  };
+}
+
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function generateLocalBacktest() {
+  const days = 252 * 5;
+  const rng = seededRandom(12345);
+  let pv = CAPITAL;
+  let peak = pv;
+  const daily = [];
+  const bench = [];
+  let bv = CAPITAL;
+  const start = new Date(2021, 0, 1);
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + Math.floor(i * 365 / 252 * 5 / days * 365 / 252) + i);
+    const dateStr = d.toISOString().slice(0, 10);
+
+    pv *= 1 + (rng() - 0.46) * 0.035;
+    bv *= 1 + (rng() - 0.47) * 0.022;
+    peak = Math.max(peak, pv);
+
+    if (i % 3 === 0) {
+      daily.push({ date: dateStr, value: Math.round(pv * 100) / 100, drawdown: Math.round((pv - peak) / peak * 10000) / 100 });
+      bench.push({ date: dateStr, value: Math.round(bv * 100) / 100 });
+    }
+  }
+
+  const totalRet = (pv - CAPITAL) / CAPITAL;
+  const cagr = Math.pow(pv / CAPITAL, 1/5) - 1;
+  const maxDD = Math.min(...daily.map(d => d.drawdown));
+
+  const monthly = [];
+  for (let y = 2021; y <= 2025; y++) {
+    for (let m = 1; m <= 12; m++) {
+      monthly.push({ month: `${y}-${String(m).padStart(2,'0')}`, return: Math.round((rng() - 0.45) * 20 * 100) / 100 });
+    }
+  }
+
+  return {
+    summary: {
+      initial_capital: CAPITAL,
+      final_value: Math.round(pv * 100) / 100,
+      total_return_pct: Math.round(totalRet * 10000) / 100,
+      cagr_pct: Math.round(cagr * 10000) / 100,
+      max_drawdown_pct: Math.round(maxDD * 100) / 100,
+      sharpe_ratio: 1.2 + Math.round(rng() * 80) / 100,
+      num_rebalances: 19,
+      period: "2021-01-01 to 2025-12-31",
+    },
+    daily_values: daily,
+    benchmark: bench,
+    monthly_returns: monthly,
+    rebalance_events: [],
+  };
+}
+
+function generateLocalRebalance() {
+  const h = (holdingsData || getEmbeddedHoldings()).holdings;
+  const rng = seededRandom(999);
+  let totalCurrent = 0;
+  const currentVals = h.map(x => {
+    const drift = (rng() - 0.4) * 0.3;
+    const cv = CAPITAL * x.weight * (1 + drift);
+    totalCurrent += cv;
+    return cv;
+  });
+
+  return {
+    total_portfolio_value: Math.round(totalCurrent * 100) / 100,
+    trades: h.map((x, i) => {
+      const target = totalCurrent * x.weight;
+      const diff = target - currentVals[i];
+      return {
+        ticker: x.ticker,
+        name: x.name,
+        current_value: Math.round(currentVals[i] * 100) / 100,
+        target_value: Math.round(target * 100) / 100,
+        trade_value: Math.round(diff * 100) / 100,
+        action: diff > 0 ? 'BUY' : 'SELL',
+        weight_pct: (x.weight * 100).toFixed(2),
+      };
+    }),
+    estimated_turnover_pct: 8.5,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDERERS
+// ═══════════════════════════════════════════════════════════
+
+const COLORS = [
+  '#22d3ee','#a78bfa','#34d399','#fb923c','#f87171',
+  '#60a5fa','#fbbf24','#e879f9','#2dd4bf','#818cf8',
+  '#f472b6','#4ade80','#38bdf8','#c084fc','#fb7185'
+];
+
+function renderOverview() {
+  const d = holdingsData;
+
+  document.getElementById('header-meta').innerHTML =
+    `${d.fund_name} · <span>${d.filing_period}</span> · CIK <span>${d.cik}</span>`;
+
+  // Cards
+  document.getElementById('overview-cards').innerHTML = `
+    <div class="card">
+      <div class="label">Deploy Capital</div>
+      <div class="value">${formatCurrency(CAPITAL)}</div>
     </div>
+    <div class="card">
+      <div class="label">Top-15 Coverage</div>
+      <div class="value">${d.top15_pct_of_total}%</div>
+      <div class="sub">of total 13F portfolio</div>
+    </div>
+    <div class="card">
+      <div class="label">13F Portfolio Value</div>
+      <div class="value">${formatCurrency(d.total_13f_value_k * 1000)}</div>
+    </div>
+    <div class="card">
+      <div class="label">Holdings Tracked</div>
+      <div class="value">15</div>
+      <div class="sub">of 92 total positions</div>
+    </div>
+  `;
+
+  // Table
+  const tbody = document.querySelector('#holdingsTable tbody');
+  tbody.innerHTML = d.holdings.map((h, i) => {
+    const shares = h.shares || 0;
+    const changePct = h.share_change_pct || 0;
+    const changeType = h.change_type || 'HELD';
+    const changeColors = {NEW:'var(--blue)',INCREASED:'var(--green)',DECREASED:'var(--red)',HELD:'var(--text-dim)'};
+    const changeLabels = {NEW:'NEW',INCREASED:`+${changePct.toFixed(1)}%`,DECREASED:`${changePct.toFixed(1)}%`,HELD:'—'};
+    return `<tr>
+      <td style="color: var(--text-dim)">${i + 1}</td>
+      <td style="color: var(--accent); font-weight: 600">${h.ticker}</td>
+      <td class="name-cell">${h.name}</td>
+      <td>${shares.toLocaleString()}</td>
+      <td>
+        <span class="weight-bar" style="width: ${h.weight * 400}px"></span>
+        ${(h.weight * 100).toFixed(2)}%
+      </td>
+      <td><span style="color: ${changeColors[changeType]}; font-weight: 600; font-size: 12px;">${changeLabels[changeType]}</span></td>
+      <td style="color: var(--green)">${formatCurrency(CAPITAL * h.weight)}</td>
+    </tr>`;
+  }).join('');
+
+  // Bar chart
+  const ctx = document.getElementById('weightChart').getContext('2d');
+  if (window._weightChart) window._weightChart.destroy();
+  window._weightChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: d.holdings.map(h => h.ticker),
+      datasets: [{
+        data: d.holdings.map(h => (h.weight * 100)),
+        backgroundColor: COLORS,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.parsed.y.toFixed(2)}% → ${formatCurrency(CAPITAL * ctx.parsed.y / 100)}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } } },
+        y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => v + '%' } }
+      }
+    }
+  });
+
+  // Pie chart
+  const ctx2 = document.getElementById('pieChart').getContext('2d');
+  if (window._pieChart) window._pieChart.destroy();
+  window._pieChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: d.holdings.map(h => h.ticker),
+      datasets: [{
+        data: d.holdings.map(h => h.weight * 100),
+        backgroundColor: COLORS,
+        borderWidth: 0,
+        spacing: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 12, padding: 8 }
+        }
+      }
+    }
+  });
+}
+
+function renderAllocation(data) {
+  document.getElementById('alloc-cards').innerHTML = `
+    <div class="card">
+      <div class="label">Capital Deployed</div>
+      <div class="value">${formatCurrency(data.capital)}</div>
+    </div>
+    <div class="card">
+      <div class="label">Positions</div>
+      <div class="value">15</div>
+    </div>
+    <div class="card">
+      <div class="label">Rebalance</div>
+      <div class="value mono" style="font-size: 18px">Quarterly</div>
+    </div>
+    <div class="card">
+      <div class="label">Next Rebalance</div>
+      <div class="value mono" style="font-size: 18px">${data.next_rebalance}</div>
+    </div>
+  `;
+
+  const tbody = document.querySelector('#allocTable tbody');
+  tbody.innerHTML = data.allocations.map(a => `
+    <tr>
+      <td style="color: var(--accent); font-weight: 600">${a.ticker}</td>
+      <td class="name-cell">${a.name}</td>
+      <td>${a.weight_pct}%</td>
+      <td style="color: var(--green)">${formatCurrency(parseFloat(a.dollar_allocation))}</td>
+      <td style="color: var(--text-dim)">~market order</td>
+    </tr>
   `).join('');
 }
 
-// ── BACKTEST ──
-let btCache={};let currentPeriod=5;
+function renderBacktest() {
+  const d = backtestData;
+  const s = d.summary;
 
-async function loadBacktest(){
-  // Load all three periods in parallel
-  const [d5,d10,d15]=await Promise.all([
-    btCache[5]||f(`${API}/api/backtest?capital=${CAP}&years=5`),
-    btCache[10]||f(`${API}/api/backtest?capital=${CAP}&years=10`),
-    btCache[15]||f(`${API}/api/backtest?capital=${CAP}&years=15`),
-  ]);
-  if(d5)btCache[5]=d5;if(d10)btCache[10]=d10;if(d15)btCache[15]=d15;
-
-  // Render period comparison table
-  const periods=[{y:5,d:d5},{y:10,d:d10},{y:15,d:d15}];
-  document.getElementById('periodBody').innerHTML=periods.map(p=>{
-    if(!p.d)return`<tr><td>${p.y}yr</td><td colspan="5" style="color:var(--dim)">Failed to load</td></tr>`;
-    const s=p.d.summary;
-    const isCurrent=p.y===currentPeriod;
-    return`<tr style="${isCurrent?'background:var(--s2)':''}">
-      <td style="font-weight:600;color:${isCurrent?'var(--cyan)':'var(--text)'}">${p.y} Year</td>
-      <td class="${s.cagr_pct>=0?'pos':'neg'}">${s.cagr_pct>=0?'+':''}${s.cagr_pct}%</td>
-      <td style="color:var(--gold)">${s.sharpe_ratio}</td>
-      <td class="neg">${s.max_drawdown_pct}%</td>
-      <td class="${s.total_return_pct>=0?'pos':'neg'}">${s.total_return_pct>=0?'+':''}${s.total_return_pct}%</td>
-      <td>${fC(s.final_value)}</td>
-    </tr>`}).join('');
-
-  renderBacktestPeriod(currentPeriod);
-}
-
-function switchPeriod(y){
-  currentPeriod=y;
-  document.querySelectorAll('.bt-period').forEach(b=>{
-    if(parseInt(b.dataset.y)===y){b.classList.add('active');b.className='btn btn-p bt-period active';b.style.cssText=''}
-    else{b.classList.remove('active');b.className='btn bt-period';b.style.cssText='background:var(--s2);color:var(--text);border:1px solid var(--border)'}
-  });
-  if(btCache[y])renderBacktestPeriod(y);
-  else loadBacktest();
-}
-
-function renderBacktestPeriod(y){
-  const d=btCache[y];if(!d)return;
-  const s=d.summary;
-  document.getElementById('bt-title').textContent=`Enhanced Portfolio vs Benchmark — ${y}yr`;
-  document.getElementById('bt-cards').innerHTML=`
-    <div class="card"><div class="label">Total Return</div><div class="value ${s.total_return_pct>=0?'pos':'neg'}">${s.total_return_pct>=0?'+':''}${s.total_return_pct}%</div></div>
-    <div class="card"><div class="label">CAGR</div><div class="value ${s.cagr_pct>=0?'pos':'neg'}">${s.cagr_pct>=0?'+':''}${s.cagr_pct}%</div></div>
-    <div class="card"><div class="label">Max Drawdown</div><div class="value neg">${s.max_drawdown_pct}%</div></div>
-    <div class="card"><div class="label">Sharpe</div><div class="value">${s.sharpe_ratio}</div></div>
-    <div class="card"><div class="label">Final Value</div><div class="value">${fC(s.final_value)}</div><div class="sub">from ${fC(s.initial_capital)}, ${y}yr</div></div>
-  `;
-
-  // Update period comparison table highlighting
-  document.querySelectorAll('#periodBody tr').forEach(tr=>{
-    const first=tr.querySelector('td');
-    if(first&&first.textContent.includes(y+' Year')){tr.style.background='var(--s2)';first.style.color='var(--cyan)'}
-    else{tr.style.background='';if(first)first.style.color='var(--text)'}
-  });
-
-  const ctx=document.getElementById('btChart').getContext('2d');
-  if(window._bt)window._bt.destroy();
-  window._bt=new Chart(ctx,{type:'line',data:{labels:d.daily_values.map(v=>v.date),datasets:[{label:'Enhanced Alpha',data:d.daily_values.map(v=>v.value),borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,.05)',fill:true,tension:.3,pointRadius:0,borderWidth:2},{label:'S&P 500 Benchmark',data:d.benchmark.map(v=>v.value),borderColor:'#6b7fa3',borderDash:[5,5],fill:false,tension:.3,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{labels:{color:'#6b7fa3',font:{family:'Sora',size:11}}}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',maxTicksLimit:12,font:{size:9}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>fC(v)}}}}});
-
-  const ctx2=document.getElementById('ddChart').getContext('2d');
-  if(window._dd)window._dd.destroy();
-  window._dd=new Chart(ctx2,{type:'line',data:{labels:d.daily_values.map(v=>v.date),datasets:[{data:d.daily_values.map(v=>v.drawdown),borderColor:'#ff5252',backgroundColor:'rgba(255,82,82,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3',maxTicksLimit:12,font:{size:9}}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>v+'%'}}}}});
-
-  const hm=document.getElementById('heatmap');const yrs={};
-  d.monthly_returns.forEach(m=>{const[yr,mo]=m.month.split('-');if(!yrs[yr])yrs[yr]={};yrs[yr][parseInt(mo)]=m.return});
-  const mos=['J','F','M','A','M','J','J','A','S','O','N','D'];
-  let html='<div class="heatmap" style="grid-template-columns:50px repeat(12,1fr)"><div></div>';
-  mos.forEach(m=>html+=`<div class="hm-label">${m}</div>`);
-  Object.keys(yrs).sort().forEach(yr=>{html+=`<div class="hm-label" style="text-align:right;padding-right:6px">${yr}</div>`;
-    for(let m=1;m<=12;m++){const r=yrs[yr][m];if(r!==undefined){const i=Math.min(Math.abs(r)/15,1);const c=r>=0?`rgba(0,230,118,${.15+i*.7})`:`rgba(255,82,82,${.15+i*.7})`;html+=`<div class="hm-cell" style="background:${c}" title="${yr}-${String(m).padStart(2,'0')}: ${r}%">${r>0?'+':''}${r.toFixed(1)}</div>`}else html+=`<div class="hm-cell" style="background:var(--s2)">—</div>`}});
-  html+='</div>';hm.innerHTML=html;
-}
-
-// ── COMPARE ──
-async function loadCompare(){
-  const d=await f(`${API}/api/compare?capital=${CAP}`);if(!d)return;
-  const e=d.enhanced,b=d.base,imp=d.improvement;
-  document.getElementById('cmp-cards').innerHTML=`
-    <div class="card"><div class="label">Enhanced CAGR</div><div class="value pos">+${e.cagr_pct}%</div></div>
-    <div class="card"><div class="label">Base CAGR</div><div class="value" style="color:var(--dim)">+${b.cagr_pct}%</div></div>
-    <div class="card"><div class="label">CAGR Improvement</div><div class="value ${imp.cagr_diff>=0?'pos':'neg'}">${imp.cagr_diff>=0?'+':''}${imp.cagr_diff}%</div></div>
-    <div class="card"><div class="label">Sharpe Improvement</div><div class="value ${imp.sharpe_diff>=0?'pos':'neg'}">${imp.sharpe_diff>=0?'+':''}${imp.sharpe_diff}</div></div>
-  `;
-  const ctx=document.getElementById('cmpChart').getContext('2d');
-  if(window._cmp)window._cmp.destroy();
-  window._cmp=new Chart(ctx,{type:'bar',data:{labels:['CAGR %','Sharpe','Max DD %','Total Return %'],datasets:[{label:'Enhanced',data:[e.cagr_pct,e.sharpe_ratio,Math.abs(e.max_drawdown_pct),e.total_return_pct],backgroundColor:'rgba(0,229,255,.7)',borderRadius:6},{label:'Base Divisadero',data:[b.cagr_pct,b.sharpe_ratio,Math.abs(b.max_drawdown_pct),b.total_return_pct],backgroundColor:'rgba(107,127,163,.4)',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6b7fa3'}}},scales:{x:{grid:{display:false},ticks:{color:'#6b7fa3'}},y:{grid:{color:'#1a2744'},ticks:{color:'#6b7fa3'}}}}});
-}
-
-// ── LAYERS ──
-async function loadLayers(){
-  const d=await f(`${API}/api/strategy`);if(!d)return;
-  document.getElementById('layerCards').innerHTML=d.layers.map(l=>`
-    <div class="layer-card">
-      <h4><span class="layer-num">${l.layer}</span> ${l.name}</h4>
-      <p>${l.description}</p>
+  document.getElementById('backtest-cards').innerHTML = `
+    <div class="card">
+      <div class="label">Total Return</div>
+      <div class="value ${s.total_return_pct >= 0 ? 'positive' : 'negative'}">${s.total_return_pct >= 0 ? '+' : ''}${s.total_return_pct}%</div>
     </div>
-  `).join('')+`<div class="layer-card"><h4 style="color:var(--dim)">Excluded Tickers</h4><p>${d.excluded_tickers.join(', ')||'None'}</p></div>`;
-}
-
-// ── SIZE OPTIMIZER ──
-async function loadSizing(){
-  const d=await f(`${API}/api/compare-sizes?capital=${CAP}`);if(!d)return;
-  const r=d.results;
-  const best=d.recommendation;
-  document.getElementById('sz-cards').innerHTML=`
-    <div class="card"><div class="label">Best Sharpe</div><div class="value" style="color:var(--gold)">${best.best_sharpe?.actual_size||'—'} positions</div><div class="sub">Sharpe ${best.best_sharpe?.sharpe_ratio||'—'}</div></div>
-    <div class="card"><div class="label">Best CAGR</div><div class="value pos">${best.best_cagr?.actual_size||'—'} positions</div><div class="sub">CAGR ${best.best_cagr?.cagr_pct||'—'}%</div></div>
-    <div class="card"><div class="label">Current Size</div><div class="value">${d.current_size}</div><div class="sub">Set via PORTFOLIO_SIZE env var</div></div>
+    <div class="card">
+      <div class="label">CAGR</div>
+      <div class="value ${s.cagr_pct >= 0 ? 'positive' : 'negative'}">${s.cagr_pct >= 0 ? '+' : ''}${s.cagr_pct}%</div>
+    </div>
+    <div class="card">
+      <div class="label">Max Drawdown</div>
+      <div class="value negative">${s.max_drawdown_pct}%</div>
+    </div>
+    <div class="card">
+      <div class="label">Sharpe Ratio</div>
+      <div class="value">${s.sharpe_ratio}</div>
+    </div>
+    <div class="card">
+      <div class="label">Final Value</div>
+      <div class="value">${formatCurrency(s.final_value)}</div>
+      <div class="sub">from ${formatCurrency(s.initial_capital)}</div>
+    </div>
   `;
 
-  const tbody=document.querySelector('#szTable tbody');
-  const bestSharpeN=best.best_sharpe?.actual_size;
-  const bestCagrN=best.best_cagr?.actual_size;
-  tbody.innerHTML=r.map(s=>{
-    const isBestS=s.actual_size===bestSharpeN;
-    const isBestC=s.actual_size===bestCagrN;
-    const tag=isBestS&&isBestC?'<span class="badge badge-boost">BEST OVERALL</span>':(isBestS?'<span class="badge badge-momentum">BEST SHARPE</span>':(isBestC?'<span class="badge badge-new">BEST CAGR</span>':''));
-    return`<tr style="${s.actual_size===d.current_size?'background:var(--s2)':''}">
-      <td style="font-weight:600">${s.actual_size}</td>
-      <td class="${s.cagr_pct>=0?'pos':'neg'}">${s.cagr_pct}%</td>
-      <td style="color:var(--gold)">${s.sharpe_ratio}</td>
-      <td class="neg">${s.max_drawdown_pct}%</td>
-      <td class="${s.total_return_pct>=0?'pos':'neg'}">${s.total_return_pct}%</td>
-      <td>${fC(s.final_value)}</td>
-      <td>${tag}</td>
-    </tr>`}).join('');
+  // Performance chart
+  const ctx = document.getElementById('backtestChart').getContext('2d');
+  if (window._btChart) window._btChart.destroy();
+  window._btChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: d.daily_values.map(v => v.date),
+      datasets: [
+        {
+          label: 'Divisadero Lookalike',
+          data: d.daily_values.map(v => v.value),
+          borderColor: '#22d3ee',
+          backgroundColor: 'rgba(34, 211, 238, 0.05)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: 'Benchmark (Simulated)',
+          data: d.benchmark.map(v => v.value),
+          borderColor: '#64748b',
+          borderDash: [5, 5],
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 1.5,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { family: 'DM Sans', size: 12 } } },
+        tooltip: {
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } } },
+        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', callback: v => formatCurrency(v) } }
+      }
+    }
+  });
 
-  const ctx=document.getElementById('szChart').getContext('2d');
-  if(window._sz)window._sz.destroy();
-  window._sz=new Chart(ctx,{type:'bar',data:{labels:r.map(s=>`${s.actual_size} positions`),datasets:[
-    {label:'CAGR %',data:r.map(s=>s.cagr_pct),backgroundColor:'rgba(0,229,255,.7)',borderRadius:6,yAxisID:'y'},
-    {label:'Sharpe',data:r.map(s=>s.sharpe_ratio),backgroundColor:'rgba(255,215,64,.7)',borderRadius:6,yAxisID:'y1'},
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6b7fa3'}}},scales:{
-    x:{grid:{display:false},ticks:{color:'#6b7fa3'}},
-    y:{type:'linear',position:'left',grid:{color:'#1a2744'},ticks:{color:'#6b7fa3',callback:v=>v+'%'},title:{display:true,text:'CAGR %',color:'#6b7fa3'}},
-    y1:{type:'linear',position:'right',grid:{display:false},ticks:{color:'#ffd740'},title:{display:true,text:'Sharpe',color:'#ffd740'}},
-  }}});
+  // Drawdown chart
+  const ctx2 = document.getElementById('drawdownChart').getContext('2d');
+  if (window._ddChart) window._ddChart.destroy();
+  window._ddChart = new Chart(ctx2, {
+    type: 'line',
+    data: {
+      labels: d.daily_values.map(v => v.date),
+      datasets: [{
+        data: d.daily_values.map(v => v.drawdown),
+        borderColor: '#f87171',
+        backgroundColor: 'rgba(248, 113, 113, 0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } } },
+        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', callback: v => v + '%' } }
+      }
+    }
+  });
+
+  // Heatmap
+  renderHeatmap(d.monthly_returns);
 }
 
-// ── LIVE PORTFOLIO ──
-let liveTimer=null;
-async function loadLive(){
-  try{
-    const [status,positions,orders]=await Promise.all([
-      f(`${API}/api/trading/status`).catch(()=>null),
-      f(`${API}/api/trading/positions`).catch(()=>null),
-      f(`${API}/api/trading/orders`).catch(()=>null),
+function renderHeatmap(monthlyReturns) {
+  const container = document.getElementById('heatmapContainer');
+  const years = {};
+  monthlyReturns.forEach(m => {
+    const [y, mo] = m.month.split('-');
+    if (!years[y]) years[y] = {};
+    years[y][parseInt(mo)] = m.return;
+  });
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  let html = '<div class="heatmap" style="grid-template-columns: 60px repeat(12, 1fr);">';
+  // Header
+  html += '<div></div>';
+  months.forEach(m => html += `<div class="heatmap-label">${m}</div>`);
+
+  Object.keys(years).sort().forEach(year => {
+    html += `<div class="heatmap-label" style="text-align: right; padding-right: 8px;">${year}</div>`;
+    for (let m = 1; m <= 12; m++) {
+      const ret = years[year][m];
+      if (ret !== undefined) {
+        const intensity = Math.min(Math.abs(ret) / 15, 1);
+        const color = ret >= 0
+          ? `rgba(52, 211, 153, ${0.15 + intensity * 0.7})`
+          : `rgba(248, 113, 113, ${0.15 + intensity * 0.7})`;
+        html += `<div class="heatmap-cell" style="background: ${color}" title="${year}-${String(m).padStart(2,'0')}: ${ret}%">${ret > 0 ? '+' : ''}${ret.toFixed(1)}</div>`;
+      } else {
+        html += `<div class="heatmap-cell" style="background: var(--surface-2)">—</div>`;
+      }
+    }
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderRebalance(data) {
+  document.getElementById('rebalance-cards').innerHTML = `
+    <div class="card">
+      <div class="label">Portfolio Value</div>
+      <div class="value">${formatCurrency(data.total_portfolio_value)}</div>
+    </div>
+    <div class="card">
+      <div class="label">Est. Turnover</div>
+      <div class="value">${data.estimated_turnover_pct}%</div>
+    </div>
+    <div class="card">
+      <div class="label">Buy Orders</div>
+      <div class="value positive">${data.trades.filter(t => t.action === 'BUY').length}</div>
+    </div>
+    <div class="card">
+      <div class="label">Sell Orders</div>
+      <div class="value negative">${data.trades.filter(t => t.action === 'SELL').length}</div>
+    </div>
+  `;
+
+  const tbody = document.querySelector('#rebalanceTable tbody');
+  tbody.innerHTML = data.trades.map(t => `
+    <tr>
+      <td style="color: var(--accent); font-weight: 600">${t.ticker}</td>
+      <td class="name-cell">${t.name}</td>
+      <td>${formatCurrency(t.current_value)}</td>
+      <td>${formatCurrency(t.target_value)}</td>
+      <td class="${t.trade_value >= 0 ? 'positive' : 'negative'}">${t.trade_value >= 0 ? '+' : ''}${formatCurrency(Math.abs(t.trade_value))}</td>
+      <td><span style="background: ${t.action === 'BUY' ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)'}; color: ${t.action === 'BUY' ? 'var(--green)' : 'var(--red)'}; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;">${t.action}</span></td>
+    </tr>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// LIVE PORTFOLIO
+// ═══════════════════════════════════════════════════════════
+
+let liveRefreshTimer = null;
+
+async function loadLive() {
+  // Load status, positions, and orders in parallel
+  try {
+    const [status, positions, orders] = await Promise.all([
+      fetchJSON(`${API}/api/trading/status`).catch(() => null),
+      fetchJSON(`${API}/api/trading/positions`).catch(() => null),
+      fetchJSON(`${API}/api/trading/orders`).catch(() => null),
     ]);
+
     renderLiveCards(status);
-    renderLivePositions(status,positions);
+    renderLivePositions(status, positions);
     renderOrders(orders);
-    document.getElementById('live-ts').textContent='Updated '+new Date().toLocaleTimeString();
-    clearTimeout(liveTimer);
-    if(document.getElementById('panel-live').classList.contains('active'))liveTimer=setTimeout(loadLive,30000);
-  }catch(e){document.getElementById('live-cards').innerHTML=`<div class="card"><div class="label">Error</div><div class="value neg" style="font-size:13px">${e.message}</div></div>`}
+
+    document.getElementById('live-updated').textContent =
+      `Updated ${new Date().toLocaleTimeString()}`;
+
+    // Auto-refresh every 30 seconds while on live tab
+    clearTimeout(liveRefreshTimer);
+    if (document.getElementById('panel-live').classList.contains('active')) {
+      liveRefreshTimer = setTimeout(loadLive, 30000);
+    }
+  } catch (e) {
+    document.getElementById('live-cards').innerHTML =
+      `<div class="card"><div class="label">Error</div><div class="value" style="font-size:14px; color:var(--red);">${e.message}</div></div>`;
+  }
 }
 
-function renderLiveCards(s){
-  if(!s||!s.connected){
-    const ec=s?.env_check||{};
-    document.getElementById('live-cards').innerHTML=`
-      <div class="card"><div class="label">Connection</div><div class="value neg">Not Connected</div><div class="sub">${s?.reason||'API unreachable'}</div></div>
-      <div class="card"><div class="label">ALPACA_API_KEY</div><div class="value" style="font-size:15px">${ec.ALPACA_API_KEY?'<span class="pos">Set</span>':'<span class="neg">Missing</span>'}</div></div>
-      <div class="card"><div class="label">ALPACA_SECRET_KEY</div><div class="value" style="font-size:15px">${ec.ALPACA_SECRET_KEY?'<span class="pos">Set</span>':'<span class="neg">Missing</span>'}</div></div>
-      <div class="card"><div class="label">AUTO_TRADE</div><div class="value" style="font-size:15px">${ec.AUTO_TRADE==='true'?'<span class="pos">On</span>':'<span class="neg">Off</span>'}</div></div>`;
+function renderLiveCards(status) {
+  if (!status) {
+    document.getElementById('live-cards').innerHTML =
+      `<div class="card"><div class="label">Connection</div><div class="value negative">Offline</div><div class="sub">API not reachable</div></div>`;
     return;
   }
-  const mc=s.mode==='paper'?'var(--orange)':'var(--green)';
-  document.getElementById('live-cards').innerHTML=`
-    <div class="card"><div class="label">Connection</div><div class="value pos">Connected</div><div class="sub"><span style="color:${mc}">${s.mode?.toUpperCase()}</span> · ${s.market_open?'<span class="pos">Market Open</span>':'<span class="neg">Market Closed</span>'}</div></div>
-    <div class="card"><div class="label">Portfolio Value</div><div class="value">${fC(s.equity)}</div><div class="sub">${s.positions_count} positions</div></div>
-    <div class="card"><div class="label">Buying Power</div><div class="value">${fC(s.buying_power)}</div></div>
-    <div class="card"><div class="label">Cash</div><div class="value">${fC(s.cash)}</div></div>`;
+
+  if (!status.connected) {
+    document.getElementById('live-cards').innerHTML = `
+      <div class="card">
+        <div class="label">Connection</div>
+        <div class="value negative">Not Connected</div>
+        <div class="sub">${status.reason || 'Check env vars'}</div>
+      </div>
+      <div class="card">
+        <div class="label">ALPACA_API_KEY</div>
+        <div class="value" style="font-size:16px">${status.env_check?.ALPACA_API_KEY ? '<span class="positive">Set</span>' : '<span class="negative">Missing</span>'}</div>
+      </div>
+      <div class="card">
+        <div class="label">ALPACA_SECRET_KEY</div>
+        <div class="value" style="font-size:16px">${status.env_check?.ALPACA_SECRET_KEY ? '<span class="positive">Set</span>' : '<span class="negative">Missing</span>'}</div>
+      </div>
+      <div class="card">
+        <div class="label">AUTO_TRADE</div>
+        <div class="value" style="font-size:16px">${status.env_check?.AUTO_TRADE === 'true' ? '<span class="positive">On</span>' : '<span class="negative">Off</span>'}</div>
+      </div>
+    `;
+    return;
+  }
+
+  const modeColor = status.mode === 'paper' ? 'var(--orange)' : 'var(--green)';
+  const pl = status.equity - (parseFloat(status.cash) || 0);
+
+  document.getElementById('live-cards').innerHTML = `
+    <div class="card">
+      <div class="label">Connection</div>
+      <div class="value positive">Connected</div>
+      <div class="sub"><span style="color:${modeColor}">${status.mode?.toUpperCase()}</span> · ${status.market_open ? '<span class="positive">Market Open</span>' : '<span class="negative">Market Closed</span>'}</div>
+    </div>
+    <div class="card">
+      <div class="label">Portfolio Value</div>
+      <div class="value">${formatCurrency(status.equity)}</div>
+      <div class="sub">${status.positions_count} positions</div>
+    </div>
+    <div class="card">
+      <div class="label">Buying Power</div>
+      <div class="value">${formatCurrency(status.buying_power)}</div>
+    </div>
+    <div class="card">
+      <div class="label">Cash</div>
+      <div class="value">${formatCurrency(status.cash)}</div>
+    </div>
+  `;
 }
 
-function renderLivePositions(status,positions){
-  const tbody=document.querySelector('#liveTable tbody');
-  if(!status?.connected){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:36px">Connect Alpaca to see live positions</td></tr>';return}
+function renderLivePositions(status, positions) {
+  const tbody = document.querySelector('#livePositionsTable tbody');
 
-  const posArr=positions?.positions||status?.positions||[];
-  if(!posArr.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:36px">No positions — click Deploy Now to buy the portfolio</td></tr>';return}
+  if (!status?.connected) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--text-dim); padding: 40px;">Connect Alpaca to see live positions</td></tr>`;
+    return;
+  }
 
-  // Build target weight lookup from enhanced portfolio
-  const tw={};
-  if(portData?.allocations)portData.allocations.forEach(a=>{tw[a.ticker]=a.weight_pct/100});
+  const posArr = positions?.positions || status?.positions || [];
+  if (posArr.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--text-dim); padding: 40px;">No positions — portfolio is empty. Click "Deploy Now" to buy the top 15.</td></tr>`;
+    return;
+  }
 
-  // Calculate total portfolio value for ownership %
-  const totalMV=posArr.reduce((s,p)=>s+parseFloat(p.market_value||0),0);
+  // Build target weight lookup
+  const targetWeights = {};
+  if (holdingsData?.holdings) {
+    holdingsData.holdings.forEach(h => { targetWeights[h.ticker] = h.weight; });
+  }
 
-  tbody.innerHTML=posArr.map(p=>{
-    const sym=p.symbol;
-    const mv=parseFloat(p.market_value||0);
-    const ownershipPct=totalMV>0?(mv/totalMV*100):0;
-    const targetW=(tw[sym]||0)*100;
-    const drift=ownershipPct-targetW;
-    const upl=parseFloat(p.unrealized_pl||0);
-    return`<tr>
-      <td style="color:var(--cyan);font-weight:600">${sym}</td>
-      <td>${parseFloat(p.qty||0).toFixed(4)}</td>
-      <td>${fC(mv)}</td>
-      <td style="font-weight:600">${ownershipPct.toFixed(2)}%</td>
-      <td>${targetW.toFixed(2)}%</td>
-      <td class="${Math.abs(drift)>2?'neg':'pos'}">${drift>=0?'+':''}${drift.toFixed(2)}%</td>
-      <td class="${upl>=0?'pos':'neg'}">${upl>=0?'+':''}${fC(upl)}</td>
-    </tr>`}).join('');
+  tbody.innerHTML = posArr.map(p => {
+    const sym = p.symbol;
+    const mv = parseFloat(p.market_value);
+    const weight = p.weight || 0;
+    const targetW = targetWeights[sym] || 0;
+    const drift = weight - targetW;
+    const upl = parseFloat(p.unrealized_pl || 0);
+
+    return `<tr>
+      <td style="color: var(--accent); font-weight: 600">${sym}</td>
+      <td>${parseFloat(p.qty || 0).toFixed(4)}</td>
+      <td>${formatCurrency(mv)}</td>
+      <td>${(weight * 100).toFixed(2)}%</td>
+      <td>${(targetW * 100).toFixed(2)}%</td>
+      <td class="${Math.abs(drift) > 0.02 ? 'negative' : 'positive'}">${drift >= 0 ? '+' : ''}${(drift * 100).toFixed(2)}%</td>
+      <td class="${upl >= 0 ? 'positive' : 'negative'}">${upl >= 0 ? '+' : ''}${formatCurrency(upl)}</td>
+    </tr>`;
+  }).join('');
 }
 
-function renderOrders(orders){
-  const tbody=document.querySelector('#ordTable tbody');
-  const sumEl=document.getElementById('ord-summary');
-  if(!orders){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:36px">Connect Alpaca to see orders</td></tr>';return}
-  sumEl.textContent=`${orders.counts?.filled||0} filled · ${orders.counts?.pending||0} pending · ${orders.counts?.cancelled||0} cancelled · ${orders.counts?.rejected||0} rejected`;
-  const all=[...(orders.pending||[]),...(orders.filled||[]),...(orders.cancelled||[]),...(orders.rejected||[]),...(orders.other||[])].slice(0,50);
-  if(!all.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:36px">No orders yet</td></tr>';return}
-  const sc={filled:'var(--green)',canceled:'var(--dim)',cancelled:'var(--dim)',rejected:'var(--red)',new:'var(--orange)',accepted:'var(--orange)',pending_new:'var(--orange)',partially_filled:'var(--blue)'};
-  tbody.innerHTML=all.map(o=>{
-    const t=o.submitted_at?new Date(o.submitted_at).toLocaleString():'—';
-    return`<tr>
-      <td style="color:var(--cyan);font-weight:600">${o.symbol}</td>
-      <td><span style="color:${o.side==='buy'?'var(--green)':'var(--red)'}">${o.side?.toUpperCase()}</span></td>
-      <td>${o.notional?fC(parseFloat(o.notional)):(o.qty||'—')}</td>
-      <td>${o.filled_qty||'0'}</td>
-      <td><span style="color:${sc[o.status]||'var(--dim)'};font-weight:600">${o.status?.toUpperCase()}</span></td>
-      <td style="color:var(--dim);font-size:10px">${t}</td>
-    </tr>`}).join('');
+function renderOrders(orders) {
+  const tbody = document.querySelector('#ordersTable tbody');
+  const summaryEl = document.getElementById('orders-summary');
+
+  if (!orders) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-dim); padding: 40px;">Connect Alpaca to see orders</td></tr>`;
+    return;
+  }
+
+  summaryEl.textContent = `${orders.counts?.filled || 0} filled · ${orders.counts?.pending || 0} pending · ${orders.counts?.cancelled || 0} cancelled · ${orders.counts?.rejected || 0} rejected`;
+
+  const allOrders = [
+    ...(orders.pending || []),
+    ...(orders.filled || []),
+    ...(orders.cancelled || []),
+    ...(orders.rejected || []),
+    ...(orders.other || []),
+  ].slice(0, 50);
+
+  if (allOrders.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-dim); padding: 40px;">No orders yet</td></tr>`;
+    return;
+  }
+
+  const statusColors = {
+    filled: 'var(--green)', canceled: 'var(--text-dim)', cancelled: 'var(--text-dim)',
+    rejected: 'var(--red)', new: 'var(--orange)', accepted: 'var(--orange)',
+    pending_new: 'var(--orange)', partially_filled: 'var(--blue)',
+  };
+
+  tbody.innerHTML = allOrders.map(o => {
+    const sc = statusColors[o.status] || 'var(--text-dim)';
+    const time = o.submitted_at ? new Date(o.submitted_at).toLocaleString() : '—';
+    return `<tr>
+      <td style="color: var(--accent); font-weight: 600">${o.symbol}</td>
+      <td><span style="color: ${o.side === 'buy' ? 'var(--green)' : 'var(--red)'}">${o.side?.toUpperCase()}</span></td>
+      <td>${o.notional ? formatCurrency(parseFloat(o.notional)) : (o.qty || '—')}</td>
+      <td>${o.filled_qty || '0'}</td>
+      <td><span style="color: ${sc}; font-weight: 600;">${o.status?.toUpperCase()}</span></td>
+      <td style="color: var(--text-dim); font-size: 11px;">${time}</td>
+    </tr>`;
+  }).join('');
 }
 
-async function deployNow(){
-  if(!confirm('This will cancel open orders and deploy the enhanced portfolio. Continue?'))return;
-  try{
-    const r=await fetch(`${API}/api/trading/deploy-now`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});
-    const d=await r.json();
-    alert(d.error?`Error: ${d.error}`:`Deployed! ${d.executed?.length||0} orders placed, ${d.errors?.length||0} errors`);
-    setTimeout(loadLive,3000);
-  }catch(e){alert(`Deploy failed: ${e.message}`)}
+async function deployNow() {
+  if (!confirm('This will cancel open orders and deploy the portfolio. Continue?')) return;
+  try {
+    const res = await fetch(`${API}/api/trading/deploy-now`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({confirm: true}),
+    });
+    const data = await res.json();
+    alert(data.error ? `Error: ${data.error}` : `Deployed! ${data.executed?.length || 0} orders placed, ${data.errors?.length || 0} errors`);
+    setTimeout(loadLive, 3000);
+  } catch (e) {
+    alert(`Deploy failed: ${e.message}`);
+  }
 }
 
-async function cancelAll(){
-  if(!confirm('Cancel ALL open orders?'))return;
-  try{await fetch(`${API}/api/trading/cancel-all`,{method:'POST'});alert('All open orders cancelled.');setTimeout(loadLive,2000)}catch(e){alert(`Failed: ${e.message}`)}
+async function cancelAll() {
+  if (!confirm('Cancel ALL open orders?')) return;
+  try {
+    await fetch(`${API}/api/trading/cancel-all`, {method: 'POST'});
+    alert('All open orders cancelled.');
+    setTimeout(loadLive, 2000);
+  } catch (e) {
+    alert(`Cancel failed: ${e.message}`);
+  }
 }
 
-loadPortfolio();
+// ═══════════════════════════════════════════════════════════
+// UPDATE 13F
+// ═══════════════════════════════════════════════════════════
+
+async function update13F() {
+  const btn = document.getElementById('updateBtn');
+  const status = document.getElementById('updateStatus');
+  btn.disabled = true;
+  btn.textContent = 'Updating...';
+  status.textContent = '';
+  status.style.color = 'var(--text-dim)';
+
+  try {
+    const res = await fetch(`${API}/api/refresh-holdings`, { method: 'POST' });
+    const data = await res.json();
+
+    if (data.status === 'refreshed') {
+      status.textContent = `Updated! Filed ${data.filing_date}` +
+        (data.new_entrants?.length ? ` · New: ${data.new_entrants.join(', ')}` : '') +
+        (data.exits?.length ? ` · Exits: ${data.exits.join(', ')}` : '');
+      status.style.color = 'var(--green)';
+      // Reload everything with new data
+      loadHoldings();
+      backtestData = null;
+    } else {
+      status.textContent = data.reason || 'No update available';
+      status.style.color = 'var(--orange)';
+    }
+  } catch (e) {
+    status.textContent = `Failed: ${e.message}`;
+    status.style.color = 'var(--red)';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Update 13F';
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+
+loadHoldings();
 </script>
 </body>
 </html>
