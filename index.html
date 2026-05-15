@@ -126,6 +126,23 @@ td.nm{font-family:'Sora',sans-serif;font-weight:500;font-size:12px}
         <tbody><tr><td colspan="6" style="text-align:center;color:var(--dim);padding:36px">Loading...</td></tr></tbody></table>
       </div>
     </div>
+
+    <div class="tw" style="margin-top:20px">
+      <div class="tw-title"><span>Portfolio Health — Live vs Target</span><button class="btn" style="background:var(--s2);color:var(--text);border:1px solid var(--border);font-size:11px;padding:5px 12px" onclick="loadHealthCheck()">Check Now</button></div>
+      <div class="cards" id="health-cards" style="padding:14px 18px 0"><div class="card"><div class="label">Click Check Now</div><div class="value" style="font-size:13px;color:var(--dim)">Compares your live Alpaca holdings against target consensus weights</div></div></div>
+      <div style="overflow-x:auto">
+        <table id="healthTable"><thead><tr><th>Status</th><th>Ticker</th><th>Company</th><th>Live Value</th><th>Live %</th><th>Target %</th><th>Drift</th><th>Drift $</th><th>Action Needed</th></tr></thead>
+        <tbody id="healthBody"><tr><td colspan="9" style="text-align:center;color:var(--dim);padding:36px">Click "Check Now" to compare live portfolio against targets</td></tr></tbody></table>
+      </div>
+    </div>
+
+    <div class="tw" id="tradesNeededWrap" style="margin-top:20px;display:none">
+      <div class="tw-title" style="color:var(--gold)">Trades Needed to Realign</div>
+      <div style="overflow-x:auto">
+        <table><thead><tr><th>Ticker</th><th>Side</th><th>Amount</th><th>Reason</th></tr></thead>
+        <tbody id="tradesBody"></tbody></table>
+      </div>
+    </div>
   </div>
 
   <div class="panel" id="panel-consensus">
@@ -186,6 +203,11 @@ td.nm{font-family:'Sora',sans-serif;font-weight:500;font-size:12px}
     <div class="tw" id="stagedWrap" style="margin-top:20px;display:none">
       <div class="tw-title" style="color:var(--gold)">⏳ Staged Rebalance Proposal</div>
       <div id="stagedContent" style="padding:18px"></div>
+    </div>
+
+    <div class="tw" style="margin-top:20px">
+      <div class="tw-title"><span>Rebalance Audit Trail</span><button class="btn" style="background:var(--s2);color:var(--text);border:1px solid var(--border);font-size:11px;padding:5px 12px" onclick="loadHistory()">Refresh</button></div>
+      <div style="overflow-x:auto"><table id="historyTable"><thead><tr><th>Time</th><th>Event</th><th>Details</th><th>Before</th><th>After</th><th>Orders</th></tr></thead><tbody id="historyBody"><tr><td colspan="6" style="text-align:center;color:var(--dim);padding:24px">Click Refresh to load</td></tr></tbody></table></div>
     </div>
 
     <div class="chart-box" style="margin-top:20px">
@@ -430,6 +452,8 @@ async function loadFilings(){
     if(staged&&staged.status!=='none'&&staged.proposal){renderStaged(staged)}
     else{document.getElementById('stagedWrap').style.display='none'}
   }catch(e){document.getElementById('stagedWrap').style.display='none'}
+
+  loadHistory();
 }
 
 async function checkFilings(){
@@ -510,6 +534,45 @@ async function testNotify(){
   msg+=`Webhook: ${r.webhook?'✅ Sent':'❌ Failed'} (${r.webhook_url||'not set'})\n`;
   msg+=`Email: ${r.email?'✅ Sent':'❌ Failed'} (${r.email_to||'not set'})`;
   alert(msg);
+}
+
+async function loadHistory(){
+  const d=await f(`${API}/api/rebalance/history`);
+  const tbody=document.getElementById('historyBody');
+  if(!d||!d.events||!d.events.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:24px">No rebalance events yet</td></tr>';return}
+
+  const eventColors={executed:'var(--green)',dismissed:'var(--dim)',staged:'var(--gold)',check_no_changes:'var(--dim)',auto_deploy:'var(--cyan)'};
+  const eventLabels={executed:'EXECUTED',dismissed:'DISMISSED',staged:'STAGED',check_no_changes:'NO CHANGES',auto_deploy:'AUTO DEPLOY'};
+
+  tbody.innerHTML=d.events.map(e=>{
+    const time=e.timestamp?new Date(e.timestamp).toLocaleString():'—';
+    const color=eventColors[e.event]||'var(--text)';
+    const label=eventLabels[e.event]||e.event;
+
+    let details='';
+    if(e.event==='executed'){
+      const ps=e.proposal_summary||{};
+      details=`${ps.new_entrants||0} new, ${ps.exits||0} exits, ${ps.weight_changes||0} changed`;
+    }else if(e.event==='staged'){
+      details=`${e.new_filings||0} new filing(s) from ${(e.filings||[]).join(', ')}`;
+    }else if(e.event==='check_no_changes'){
+      details=e.message||'All up to date';
+    }else if(e.event==='dismissed'){
+      details=e.reason||'User dismissed';
+    }
+
+    const before=e.before?`${e.before.position_count} pos, $${Math.round(e.before.account?.equity||0).toLocaleString()}`:'—';
+    const after=e.after?`${e.after.position_count} pos, $${Math.round(e.after.account?.equity||0).toLocaleString()}`:'—';
+    const orders=e.orders_placed!==undefined?`${e.orders_placed} placed${e.order_errors?' / '+e.order_errors+' err':''}`:'—';
+
+    return`<tr>
+      <td style="font-size:10px;color:var(--dim)">${time}</td>
+      <td><span style="color:${color};font-weight:600;font-size:11px">${label}</span></td>
+      <td class="nm" style="font-size:11px">${details}</td>
+      <td style="font-size:10px">${before}</td>
+      <td style="font-size:10px">${after}</td>
+      <td style="font-size:10px">${orders}</td>
+    </tr>`}).join('');
 }
 
 // ── SIZE OPTIMIZER ──
@@ -656,6 +719,57 @@ async function deployNow(){
 async function cancelAll(){
   if(!confirm('Cancel ALL open orders?'))return;
   try{await fetch(`${API}/api/trading/cancel-all`,{method:'POST'});alert('All open orders cancelled.');setTimeout(loadLive,2000)}catch(e){alert(`Failed: ${e.message}`)}
+}
+
+async function loadHealthCheck(){
+  const hCards=document.getElementById('health-cards');
+  const hBody=document.getElementById('healthBody');
+  const tWrap=document.getElementById('tradesNeededWrap');
+  const tBody=document.getElementById('tradesBody');
+
+  hCards.innerHTML='<div class="card"><div class="label">Checking...</div><div class="value" style="font-size:14px;color:var(--dim)">Comparing live holdings against consensus targets...</div></div>';
+  hBody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:24px">Loading...</td></tr>';
+
+  const d=await f(`${API}/api/rebalance/compare-live`);
+  if(!d||d.error){
+    hCards.innerHTML=`<div class="card"><div class="label">Error</div><div class="value neg" style="font-size:13px">${d?.error||'Failed to reach API'}</div></div>`;
+    return;
+  }
+
+  const h=d.health;
+  const scoreColor=h.score_pct>=80?'var(--green)':(h.score_pct>=50?'var(--gold)':'var(--red)');
+  hCards.innerHTML=`
+    <div class="card"><div class="label">Health Score</div><div class="value" style="color:${scoreColor}">${h.score_pct}%</div><div class="sub">${h.rebalance_needed?'<span class="neg">Rebalance recommended</span>':'<span class="pos">Portfolio aligned</span>'}</div></div>
+    <div class="card"><div class="label">Aligned</div><div class="value pos">${h.aligned}</div><div class="sub">Within drift band</div></div>
+    <div class="card"><div class="label">Drifted</div><div class="value" style="color:var(--gold)">${h.drifted}</div><div class="sub">Outside drift band</div></div>
+    <div class="card"><div class="label">Missing</div><div class="value neg">${h.missing}</div><div class="sub">Target not held</div></div>
+    <div class="card"><div class="label">Extra</div><div class="value" style="color:var(--orange)">${h.extra_positions}</div><div class="sub">Held but not in target</div></div>
+    <div class="card"><div class="label">Total Drift</div><div class="value">${fC(h.total_drift_dollars)}</div><div class="sub">Dollar amount to realign</div></div>
+  `;
+
+  const statusColors={ALIGNED:'var(--green)',DRIFTED:'var(--gold)',MISSING:'var(--red)',SELL_ALL:'var(--orange)'};
+  const statusLabels={ALIGNED:'✓ ALIGNED',DRIFTED:'⚠ DRIFTED',MISSING:'✗ MISSING',SELL_ALL:'✗ EXTRA'};
+  hBody.innerHTML=d.positions.map(p=>`<tr>
+    <td><span style="color:${statusColors[p.status]||'var(--dim)'};font-weight:600;font-size:10px">${statusLabels[p.status]||p.status}</span></td>
+    <td style="color:var(--cyan);font-weight:600">${p.ticker}</td>
+    <td class="nm" style="font-size:11px">${p.name}</td>
+    <td>${p.live_value?fC(p.live_value):'—'}</td>
+    <td>${p.live_weight_pct.toFixed(2)}%</td>
+    <td>${p.target_weight_pct.toFixed(2)}%</td>
+    <td class="${Math.abs(p.drift_pct)>2?'neg':'pos'}">${p.drift_pct>=0?'+':''}${p.drift_pct.toFixed(2)}%</td>
+    <td class="${p.drift_dollars>=0?'neg':'pos'}">${p.drift_dollars>=0?'+':''}${fC(Math.abs(p.drift_dollars))}</td>
+    <td style="font-size:10px;color:var(--dim)">${p.action}</td>
+  </tr>`).join('');
+
+  if(d.trades_needed&&d.trades_needed.length>0){
+    tWrap.style.display='block';
+    tBody.innerHTML=d.trades_needed.map(t=>`<tr>
+      <td style="color:var(--cyan);font-weight:600">${t.ticker}</td>
+      <td><span style="color:${t.side==='buy'?'var(--green)':'var(--red)';font-weight:600}">${t.side.toUpperCase()}</span></td>
+      <td>${fC(t.amount)}</td>
+      <td style="font-size:10px;color:var(--dim)">${t.reason}</td>
+    </tr>`).join('');
+  }else{tWrap.style.display='none'}
 }
 
 // ── UPDATE 13F ──

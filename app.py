@@ -486,8 +486,20 @@ def check_filings():
     Does NOT auto-execute trades — you must confirm via /api/rebalance/execute.
     """
     try:
-        from filing_monitor import run_filing_check
+        from filing_monitor import run_filing_check, log_rebalance_event
         result = run_filing_check(PORTFOLIO)
+        # Log the check regardless of outcome
+        if result.get("new_filings", 0) == 0:
+            log_rebalance_event("check_no_changes", {
+                "managers_checked": len(result.get("filings", [])) or 5,
+                "message": "No new filings detected",
+            })
+        else:
+            log_rebalance_event("staged", {
+                "new_filings": result["new_filings"],
+                "filings": [f.get("manager_id") for f in result.get("filings", [])],
+                "proposal_summary": result.get("proposal", {}).get("summary"),
+            })
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -544,12 +556,11 @@ def staged_rebalance():
 @app.route("/api/rebalance/execute", methods=["POST"])
 def execute_staged_rebalance():
     """
-    Execute the staged rebalance. Must confirm.
-    Paper: {"confirm": true}
-    Live:  {"confirm": true, "live_confirm": "I understand this uses real money"}
+    Execute the staged rebalance with full audit trail.
+    Captures before/after snapshots so you can verify what changed.
     """
     try:
-        from filing_monitor import get_staged_rebalance, clear_staged_rebalance
+        from filing_monitor import get_staged_rebalance, clear_staged_rebalance, log_rebalance_event
         from alpaca_trader import AlpacaTrader
 
         staged = get_staged_rebalance()
@@ -573,22 +584,78 @@ def execute_staged_rebalance():
         if is_live and data.get("live_confirm") != "I understand this uses real money":
             return jsonify({"error": "LIVE TRADING BLOCKED", "fix": 'Add "live_confirm": "I understand this uses real money"'}), 403
 
-        # Build weights from staged portfolio
-        new_weights = {p["ticker"]: p["weight"] for p in staged.get("new_portfolio", [])}
-        capital = data.get("capital") or float(os.environ.get("DEPLOY_CAPITAL", 0)) or None
+        # BEFORE snapshot
+        before_positions = []
+        try:
+            positions = trader.get_positions()
+            before_positions = [{"symbol": p["symbol"], "qty": p["qty"], "market_value": p["market_value"]} for p in positions]
+        except Exception:
+            pass
+
+        before_account = {}
+        try:
+            account = trader.get_account()
+            before_account = {"equity": float(account.get("equity", 0)), "cash": float(account.get("cash", 0))}
+        except Exception:
+            pass
 
         # Execute
+        new_weights = {p["ticker"]: p["weight"] for p in staged.get("new_portfolio", [])}
+        capital = data.get("capital") or float(os.environ.get("DEPLOY_CAPITAL", 0)) or None
         result = trader.execute_rebalance(new_weights, capital=capital, dry_run=False)
+
+        # AFTER snapshot (wait briefly for orders to process)
+        import time
+        time.sleep(3)
+        after_positions = []
+        try:
+            positions = trader.get_positions()
+            after_positions = [{"symbol": p["symbol"], "qty": p["qty"], "market_value": p["market_value"]} for p in positions]
+        except Exception:
+            pass
+
+        after_account = {}
+        try:
+            account = trader.get_account()
+            after_account = {"equity": float(account.get("equity", 0)), "cash": float(account.get("cash", 0))}
+        except Exception:
+            pass
+
+        # Order results
+        orders_placed = result.get("executed", [])
+        order_errors = result.get("errors", [])
+
+        # Log to audit trail
+        audit_entry = log_rebalance_event("executed", {
+            "mode": "LIVE" if is_live else "paper",
+            "proposal_summary": staged.get("proposal", {}).get("summary"),
+            "staged_at": staged.get("staged_at"),
+            "before": {
+                "positions": before_positions,
+                "account": before_account,
+                "position_count": len(before_positions),
+            },
+            "after": {
+                "positions": after_positions,
+                "account": after_account,
+                "position_count": len(after_positions),
+            },
+            "orders_placed": len(orders_placed),
+            "order_errors": len(order_errors),
+            "orders": orders_placed[:20],  # Cap for storage
+            "target_weights": {p["ticker"]: round(p["weight"] * 100, 2) for p in staged.get("new_portfolio", [])},
+        })
 
         # Update the live portfolio
         global PORTFOLIO
         PORTFOLIO = build_enhanced_portfolio()
-
-        # Clear the staged rebalance
         clear_staged_rebalance()
 
+        result["audit"] = audit_entry
+        result["before_snapshot"] = {"positions": len(before_positions), "equity": before_account.get("equity", 0)}
+        result["after_snapshot"] = {"positions": len(after_positions), "equity": after_account.get("equity", 0)}
         result["rebalance_source"] = "staged_from_13f_filing"
-        result["proposal"] = staged.get("proposal", {}).get("summary")
+        result["mode_warning"] = "LIVE — real money" if is_live else "Paper trading"
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -598,12 +665,162 @@ def execute_staged_rebalance():
 def dismiss_staged_rebalance():
     """Dismiss the staged rebalance without executing."""
     try:
-        from filing_monitor import get_staged_rebalance, clear_staged_rebalance
+        from filing_monitor import get_staged_rebalance, clear_staged_rebalance, log_rebalance_event
         staged = get_staged_rebalance()
         if staged is None:
             return jsonify({"status": "nothing_to_dismiss"})
+        log_rebalance_event("dismissed", {
+            "staged_at": staged.get("staged_at"),
+            "proposal_summary": staged.get("proposal", {}).get("summary"),
+            "reason": "User dismissed",
+        })
         clear_staged_rebalance()
         return jsonify({"status": "dismissed", "was_staged_at": staged.get("staged_at")})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebalance/history")
+def rebalance_history():
+    """View the full rebalance audit trail — every check, execute, dismiss."""
+    try:
+        from filing_monitor import get_rebalance_history
+        history = get_rebalance_history()
+        return jsonify({"total": len(history), "events": history})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebalance/compare-live")
+def compare_live_to_target():
+    """
+    Compare ACTUAL Alpaca holdings against TARGET consensus weights.
+    Shows: what you hold, what you should hold, the drift, and what
+    trades would be needed to realign.
+    """
+    try:
+        from alpaca_trader import AlpacaTrader
+
+        trader = AlpacaTrader()
+        if not trader.is_configured:
+            return jsonify({"error": "Alpaca not configured — set API keys in Railway env vars"}), 400
+
+        # Get live positions
+        positions = trader.get_positions()
+        account = trader.get_account()
+        equity = float(account.get("equity", 0))
+        cash = float(account.get("cash", 0))
+
+        # Build live holdings map
+        live_holdings = {}
+        total_mv = 0
+        for p in positions:
+            sym = p["symbol"]
+            mv = float(p.get("market_value", 0))
+            live_holdings[sym] = {
+                "qty": float(p.get("qty", 0)),
+                "market_value": mv,
+                "avg_entry_price": float(p.get("avg_entry_price", 0)),
+                "current_price": float(p.get("current_price", 0)),
+                "unrealized_pl": float(p.get("unrealized_pl", 0)),
+                "unrealized_plpc": float(p.get("unrealized_plpc", 0)),
+            }
+            total_mv += mv
+
+        # Build target weights map
+        target_weights = {s["ticker"]: s["weight"] for s in PORTFOLIO}
+        target_names = {s["ticker"]: s.get("name", "") for s in PORTFOLIO}
+
+        # Compare every ticker (union of live + target)
+        all_tickers = sorted(set(list(live_holdings.keys()) + list(target_weights.keys())))
+        comparison = []
+        total_drift_dollars = 0
+        trades_needed = []
+
+        for ticker in all_tickers:
+            live = live_holdings.get(ticker)
+            target_w = target_weights.get(ticker, 0)
+
+            live_mv = live["market_value"] if live else 0
+            live_w = live_mv / total_mv if total_mv > 0 else 0
+            target_mv = equity * target_w
+
+            drift_w = live_w - target_w
+            drift_dollars = live_mv - target_mv
+            total_drift_dollars += abs(drift_dollars)
+
+            # Status
+            if ticker not in target_weights:
+                status = "SELL_ALL"
+                action = "Not in target — should be sold"
+            elif ticker not in live_holdings:
+                status = "MISSING"
+                action = "In target but not held — should be bought"
+            elif abs(drift_w) > target_w * 0.20 and target_w > 0:
+                status = "DRIFTED"
+                action = f"{'Overweight' if drift_w > 0 else 'Underweight'} by {abs(drift_w)*100:.1f}%"
+            else:
+                status = "ALIGNED"
+                action = "Within drift band"
+
+            entry = {
+                "ticker": ticker,
+                "name": target_names.get(ticker, ""),
+                "status": status,
+                "action": action,
+                "live_qty": live["qty"] if live else 0,
+                "live_value": round(live_mv, 2),
+                "live_weight_pct": round(live_w * 100, 2),
+                "target_weight_pct": round(target_w * 100, 2),
+                "target_value": round(target_mv, 2),
+                "drift_pct": round(drift_w * 100, 2),
+                "drift_dollars": round(drift_dollars, 2),
+                "unrealized_pl": round(live["unrealized_pl"], 2) if live else 0,
+            }
+            comparison.append(entry)
+
+            if status != "ALIGNED":
+                trades_needed.append({
+                    "ticker": ticker,
+                    "side": "sell" if drift_dollars > 0 else "buy",
+                    "amount": round(abs(drift_dollars), 2),
+                    "reason": action,
+                })
+
+        # Sort: problems first
+        status_order = {"MISSING": 0, "SELL_ALL": 1, "DRIFTED": 2, "ALIGNED": 3}
+        comparison.sort(key=lambda c: (status_order.get(c["status"], 9), -abs(c["drift_dollars"])))
+        trades_needed.sort(key=lambda t: -t["amount"])
+
+        aligned = sum(1 for c in comparison if c["status"] == "ALIGNED")
+        drifted = sum(1 for c in comparison if c["status"] == "DRIFTED")
+        missing = sum(1 for c in comparison if c["status"] == "MISSING")
+        extra = sum(1 for c in comparison if c["status"] == "SELL_ALL")
+
+        # Overall health score
+        total_positions = len([c for c in comparison if c["target_weight_pct"] > 0 or c["live_weight_pct"] > 0])
+        health_pct = round(aligned / total_positions * 100, 1) if total_positions > 0 else 0
+
+        return jsonify({
+            "timestamp": dt.datetime.now().isoformat(),
+            "account": {
+                "equity": equity,
+                "cash": cash,
+                "total_market_value": round(total_mv, 2),
+            },
+            "health": {
+                "score_pct": health_pct,
+                "aligned": aligned,
+                "drifted": drifted,
+                "missing": missing,
+                "extra_positions": extra,
+                "total_drift_dollars": round(total_drift_dollars / 2, 2),
+                "rebalance_needed": health_pct < 80 or missing > 0 or extra > 0,
+            },
+            "positions": comparison,
+            "trades_needed": trades_needed,
+            "target_portfolio_size": len(PORTFOLIO),
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
