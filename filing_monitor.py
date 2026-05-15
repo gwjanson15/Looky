@@ -345,6 +345,7 @@ def notify_new_filings(new_filings, proposal=None):
 # ── Staged Rebalance Storage ────────────────────────────────
 
 STAGED_FILE = CACHE_DIR / "staged_rebalance.json"
+HISTORY_FILE = CACHE_DIR / "rebalance_history.json"
 
 def save_staged_rebalance(proposal, new_portfolio):
     """Save a rebalance proposal for later execution."""
@@ -374,6 +375,53 @@ def clear_staged_rebalance():
     """Clear after execution."""
     if STAGED_FILE.exists():
         STAGED_FILE.unlink()
+
+
+# ── Rebalance History / Audit Log ────────────────────────────
+
+def _load_history():
+    """Load rebalance history."""
+    if not HISTORY_FILE.exists():
+        return []
+    try:
+        with open(HISTORY_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _save_history(history):
+    """Save rebalance history."""
+    # Keep last 50 entries
+    history = history[-50:]
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f)
+
+
+def log_rebalance_event(event_type, details):
+    """
+    Log a rebalance event to the audit trail.
+
+    event_type: "executed", "dismissed", "staged", "check_no_changes", "auto_deploy"
+    details: dict with event-specific data
+    """
+    history = _load_history()
+    entry = {
+        "id": len(history) + 1,
+        "timestamp": datetime.now().isoformat(),
+        "event": event_type,
+        **details,
+    }
+    history.append(entry)
+    _save_history(history)
+    return entry
+
+
+def get_rebalance_history():
+    """Get full rebalance history, most recent first."""
+    history = _load_history()
+    history.reverse()
+    return history
 
 
 # ── Main Monitor Loop ────────────────────────────────────────
