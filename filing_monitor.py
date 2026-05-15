@@ -167,7 +167,18 @@ def check_single_manager(manager_id):
 def build_rebalance_proposal(current_portfolio, new_portfolio):
     """
     Compare current vs proposed portfolio and generate a detailed proposal.
-    Shows new entrants, exits, weight changes, and estimated trades.
+    
+    CRITICAL LOGIC: Only flags trades when the underlying 13F data changed.
+    Pure weight drift from price movement is NOT a reason to trade.
+    
+    A trade is triggered ONLY when:
+      - A ticker is NEW to the consensus top holdings
+      - A ticker EXITED the consensus top holdings
+      - A manager materially changed their position (>15% share change)
+      - The consensus score changed enough to shift weight by >20%
+    
+    This prevents unnecessary trading when the same holdings are filed
+    quarter after quarter with minor price-driven weight fluctuations.
     """
     current_tickers = {s["ticker"]: s for s in current_portfolio}
     new_tickers = {s["ticker"]: s for s in new_portfolio}
@@ -178,47 +189,90 @@ def build_rebalance_proposal(current_portfolio, new_portfolio):
         "exits": [],
         "weight_changes": [],
         "unchanged": [],
+        "trades_required": [],
+        "no_trade_needed": [],
     }
 
-    # New entrants
+    # New entrants — ALWAYS trade
     for ticker, stock in new_tickers.items():
         if ticker not in current_tickers:
-            proposal["new_entrants"].append({
+            entry = {
                 "ticker": ticker,
                 "name": stock.get("name", ""),
                 "new_weight_pct": round(stock["weight"] * 100, 2),
                 "consensus_score": stock.get("consensus_score", 0),
                 "manager_count": stock.get("manager_count", 0),
                 "action": "BUY",
-            })
+                "reason": "New entrant in consensus portfolio",
+                "trade_required": True,
+            }
+            proposal["new_entrants"].append(entry)
+            proposal["trades_required"].append(entry)
 
-    # Exits
+    # Exits — ALWAYS trade (sell entire position)
     for ticker, stock in current_tickers.items():
         if ticker not in new_tickers:
-            proposal["exits"].append({
+            entry = {
                 "ticker": ticker,
                 "name": stock.get("name", ""),
                 "old_weight_pct": round(stock["weight"] * 100, 2),
                 "action": "SELL ALL",
-            })
+                "reason": "Dropped out of consensus portfolio",
+                "trade_required": True,
+            }
+            proposal["exits"].append(entry)
+            proposal["trades_required"].append(entry)
 
-    # Weight changes
+    # Existing positions — ONLY trade if consensus materially changed
     for ticker in set(current_tickers) & set(new_tickers):
         old_w = current_tickers[ticker]["weight"]
         new_w = new_tickers[ticker]["weight"]
-        change_pct = round((new_w - old_w) / old_w * 100, 2) if old_w > 0 else 100
+        weight_change_pct = round((new_w - old_w) / old_w * 100, 2) if old_w > 0 else 100
 
-        if abs(change_pct) > 5:  # Only report meaningful changes
-            proposal["weight_changes"].append({
-                "ticker": ticker,
-                "name": new_tickers[ticker].get("name", ""),
-                "old_weight_pct": round(old_w * 100, 2),
-                "new_weight_pct": round(new_w * 100, 2),
-                "change_pct": change_pct,
-                "action": "INCREASE" if change_pct > 0 else "DECREASE",
-            })
+        old_score = current_tickers[ticker].get("consensus_score", 0)
+        new_score = new_tickers[ticker].get("consensus_score", 0)
+        score_changed = old_score != new_score
+
+        old_mgr_count = current_tickers[ticker].get("manager_count", 0)
+        new_mgr_count = new_tickers[ticker].get("manager_count", 0)
+        manager_count_changed = old_mgr_count != new_mgr_count
+
+        # Material change threshold: weight shifted >20% OR consensus score changed
+        is_material = abs(weight_change_pct) > 20 or score_changed or manager_count_changed
+
+        entry = {
+            "ticker": ticker,
+            "name": new_tickers[ticker].get("name", ""),
+            "old_weight_pct": round(old_w * 100, 2),
+            "new_weight_pct": round(new_w * 100, 2),
+            "weight_change_pct": weight_change_pct,
+            "old_consensus_score": old_score,
+            "new_consensus_score": new_score,
+            "old_manager_count": old_mgr_count,
+            "new_manager_count": new_mgr_count,
+            "action": "INCREASE" if weight_change_pct > 0 else "DECREASE",
+        }
+
+        if is_material:
+            reasons = []
+            if abs(weight_change_pct) > 20:
+                reasons.append(f"weight shifted {weight_change_pct:+.1f}%")
+            if score_changed:
+                reasons.append(f"consensus score {old_score} → {new_score}")
+            if manager_count_changed:
+                reasons.append(f"held by {old_mgr_count} → {new_mgr_count} managers")
+
+            entry["reason"] = "; ".join(reasons)
+            entry["trade_required"] = True
+            proposal["weight_changes"].append(entry)
+            proposal["trades_required"].append(entry)
         else:
+            entry["reason"] = "No material change in consensus"
+            entry["trade_required"] = False
             proposal["unchanged"].append(ticker)
+            proposal["no_trade_needed"].append(entry)
+
+    rebalance_needed = len(proposal["trades_required"]) > 0
 
     proposal["summary"] = {
         "new_entrants": len(proposal["new_entrants"]),
@@ -226,6 +280,9 @@ def build_rebalance_proposal(current_portfolio, new_portfolio):
         "weight_changes": len(proposal["weight_changes"]),
         "unchanged": len(proposal["unchanged"]),
         "total_positions": len(new_portfolio),
+        "trades_required": len(proposal["trades_required"]),
+        "rebalance_needed": rebalance_needed,
+        "verdict": "REBALANCE NEEDED" if rebalance_needed else "NO TRADE — holdings unchanged",
     }
 
     return proposal
@@ -431,7 +488,8 @@ def run_filing_check(current_portfolio):
     Full check cycle:
     1. Check all managers for new filings
     2. If found, rebuild portfolio and compare
-    3. Stage rebalance and notify
+    3. ONLY stage a rebalance if positions actually changed
+    4. Notify with clear verdict
     Returns: dict with results
     """
     from enhanced_engine import build_enhanced_portfolio
@@ -446,25 +504,44 @@ def run_filing_check(current_portfolio):
     print(f"[FilingMonitor] {len(new_filings)} new filing(s) detected!")
 
     # Rebuild portfolio with updated data
-    # (In production, you'd re-fetch the actual XML and update MANAGERS)
     new_portfolio = build_enhanced_portfolio()
 
-    # Generate proposal
+    # Generate proposal — this now determines if trades are actually needed
     proposal = build_rebalance_proposal(current_portfolio, new_portfolio)
+    rebalance_needed = proposal["summary"]["rebalance_needed"]
 
-    # Stage it
-    staged = save_staged_rebalance(proposal, new_portfolio)
-
-    # Notify
-    notify_result = notify_new_filings(new_filings, proposal)
-
-    return {
+    result = {
         "new_filings": len(new_filings),
         "filings": new_filings,
         "proposal": proposal,
-        "staged": True,
-        "notifications": notify_result,
+        "verdict": proposal["summary"]["verdict"],
     }
+
+    if rebalance_needed:
+        # Material changes found — stage the rebalance
+        staged = save_staged_rebalance(proposal, new_portfolio)
+        result["staged"] = True
+        result["action"] = "rebalance_staged"
+        print(f"[FilingMonitor] Material changes detected: {proposal['summary']['trades_required']} trades needed. Rebalance staged.")
+
+        # Notify about the needed rebalance
+        notify_result = notify_new_filings(new_filings, proposal)
+        result["notifications"] = notify_result
+    else:
+        # New filings but same positions — no trade needed
+        result["staged"] = False
+        result["action"] = "no_trade_needed"
+        print(f"[FilingMonitor] New filings processed but NO material changes. Holdings unchanged. No trades staged.")
+
+        # Still notify, but with a different message
+        message = f"📊 *New 13F Filing{'s' if len(new_filings) > 1 else ''} Processed*\n"
+        for f_info in new_filings:
+            mgr_name = {"divisadero":"Divisadero Street","whalerock":"Whale Rock","coatue":"Coatue","lonepine":"Lone Pine","tiger_global":"Tiger Global"}.get(f_info["manager_id"], f_info["manager_id"])
+            message += f"• {mgr_name} — filed {f_info['filing_date']}\n"
+        message += "\n✅ *No material changes detected.* Same holdings, same consensus. No rebalance needed."
+        send_webhook_notification(message)
+
+    return result
 
 
 if __name__ == "__main__":

@@ -460,8 +460,16 @@ async function checkFilings(){
   document.getElementById('filing-cards').innerHTML='<div class="card"><div class="label">Checking...</div><div class="value" style="font-size:14px">Scanning SEC EDGAR for all 5 managers...</div></div>';
   const d=await fetch(`${API}/api/filings/check`,{method:'POST'}).then(r=>r.json()).catch(()=>null);
   if(!d){alert('Filing check failed');loadFilings();return}
-  if(d.new_filings>0){alert(`${d.new_filings} new filing(s) detected! Rebalance has been staged. Review it before executing.`)}
-  else{alert('No new filings detected. All managers up to date.')}
+
+  if(d.new_filings>0){
+    if(d.staged){
+      alert(`${d.new_filings} new filing(s) detected!\n\n${d.proposal?.summary?.trades_required||0} trades needed:\n• ${d.proposal?.summary?.new_entrants||0} new positions to buy\n• ${d.proposal?.summary?.exits||0} positions to sell\n• ${d.proposal?.summary?.weight_changes||0} weight adjustments\n\nRebalance has been staged. Review before executing.`);
+    }else{
+      alert(`${d.new_filings} new filing(s) processed.\n\n✅ NO TRADES NEEDED\n\nSame holdings, same consensus rankings. Your portfolio is already aligned with the latest filings.`);
+    }
+  }else{
+    alert('No new filings detected. All managers up to date.');
+  }
   loadFilings();
 }
 
@@ -497,19 +505,24 @@ function renderStaged(d){
   wrap.style.display='block';
   const p=d.proposal||{};const s=p.summary||{};
 
-  let html=`<div style="margin-bottom:12px;font-size:12px;color:var(--dim)">Staged at ${d.staged_at?new Date(d.staged_at).toLocaleString():'—'} · Status: <span style="color:var(--gold)">${d.status||'pending'}</span></div>`;
+  const verdictColor=s.rebalance_needed?'var(--gold)':'var(--green)';
+  let html=`<div style="margin-bottom:12px;font-size:13px;font-weight:600;color:${verdictColor}">${s.verdict||'Unknown'}</div>`;
+  html+=`<div style="margin-bottom:12px;font-size:12px;color:var(--dim)">Staged at ${d.staged_at?new Date(d.staged_at).toLocaleString():'—'}</div>`;
   html+=`<div class="cards" style="margin-bottom:16px">
+    <div class="card"><div class="label">Trades Required</div><div class="value" style="color:${s.trades_required>0?'var(--gold)':'var(--green)'}">${s.trades_required||0}</div></div>
     <div class="card"><div class="label">New Entrants</div><div class="value pos">${s.new_entrants||0}</div></div>
     <div class="card"><div class="label">Exits</div><div class="value neg">${s.exits||0}</div></div>
     <div class="card"><div class="label">Weight Changes</div><div class="value" style="color:var(--gold)">${s.weight_changes||0}</div></div>
-    <div class="card"><div class="label">Total Positions</div><div class="value">${s.total_positions||0}</div></div>
+    <div class="card"><div class="label">Unchanged</div><div class="value" style="color:var(--green)">${s.unchanged||0}</div><div class="sub">No trade needed</div></div>
   </div>`;
 
-  if(p.new_entrants?.length){html+=`<div style="margin-bottom:10px"><strong style="color:var(--green);font-size:12px">New Entrants:</strong>`;p.new_entrants.forEach(e=>{html+=`<div style="font-size:11px;padding:3px 0;color:var(--text)">🟢 <span style="color:var(--cyan)">${e.ticker}</span> ${e.name} — ${e.new_weight_pct}% weight</div>`});html+=`</div>`}
+  if(p.new_entrants?.length){html+=`<div style="margin-bottom:10px"><strong style="color:var(--green);font-size:12px">New Entrants (will BUY):</strong>`;p.new_entrants.forEach(e=>{html+=`<div style="font-size:11px;padding:3px 0;color:var(--text)">🟢 <span style="color:var(--cyan)">${e.ticker}</span> ${e.name} — ${e.new_weight_pct}% weight · <span style="color:var(--dim)">${e.reason}</span></div>`});html+=`</div>`}
 
-  if(p.exits?.length){html+=`<div style="margin-bottom:10px"><strong style="color:var(--red);font-size:12px">Exits:</strong>`;p.exits.forEach(e=>{html+=`<div style="font-size:11px;padding:3px 0;color:var(--text)">🔴 <span style="color:var(--red)">${e.ticker}</span> ${e.name} — was ${e.old_weight_pct}%</div>`});html+=`</div>`}
+  if(p.exits?.length){html+=`<div style="margin-bottom:10px"><strong style="color:var(--red);font-size:12px">Exits (will SELL ALL):</strong>`;p.exits.forEach(e=>{html+=`<div style="font-size:11px;padding:3px 0;color:var(--text)">🔴 <span style="color:var(--red)">${e.ticker}</span> ${e.name} — was ${e.old_weight_pct}% · <span style="color:var(--dim)">${e.reason}</span></div>`});html+=`</div>`}
 
-  if(p.weight_changes?.length){html+=`<div style="margin-bottom:10px"><strong style="color:var(--gold);font-size:12px">Weight Changes:</strong>`;p.weight_changes.forEach(e=>{const arrow=e.change_pct>0?'⬆️':'⬇️';html+=`<div style="font-size:11px;padding:3px 0;color:var(--text)">${arrow} <span style="color:var(--cyan)">${e.ticker}</span> ${e.old_weight_pct}% → ${e.new_weight_pct}% (${e.change_pct>0?'+':''}${e.change_pct}%)</div>`});html+=`</div>`}
+  if(p.weight_changes?.length){html+=`<div style="margin-bottom:10px"><strong style="color:var(--gold);font-size:12px">Weight Changes (will adjust):</strong>`;p.weight_changes.forEach(e=>{const arrow=e.weight_change_pct>0?'⬆️':'⬇️';html+=`<div style="font-size:11px;padding:3px 0;color:var(--text)">${arrow} <span style="color:var(--cyan)">${e.ticker}</span> ${e.old_weight_pct}% → ${e.new_weight_pct}% · <span style="color:var(--dim)">${e.reason}</span></div>`});html+=`</div>`}
+
+  if(p.no_trade_needed?.length){html+=`<div style="margin-bottom:10px"><strong style="color:var(--green);font-size:12px">No Trade Needed (consensus unchanged):</strong>`;p.no_trade_needed.forEach(e=>{html+=`<div style="font-size:11px;padding:3px 0;color:var(--dim)">✓ <span style="color:var(--text)">${e.ticker}</span> — score ${e.old_consensus_score}, held by ${e.old_manager_count} managers, weight ${e.old_weight_pct}% · ${e.reason}</div>`});html+=`</div>`}
 
   cont.innerHTML=html;
 }
