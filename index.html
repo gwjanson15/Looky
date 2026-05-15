@@ -425,9 +425,11 @@ async function loadFilings(){
   </tr>`).join('');
 
   // Check for staged rebalance
-  const staged=await f(`${API}/api/rebalance/staged`);
-  if(staged&&staged.status!=='none'){renderStaged(staged)}
-  else{document.getElementById('stagedWrap').style.display='none'}
+  try{
+    const staged=await f(`${API}/api/rebalance/staged`);
+    if(staged&&staged.status!=='none'&&staged.proposal){renderStaged(staged)}
+    else{document.getElementById('stagedWrap').style.display='none'}
+  }catch(e){document.getElementById('stagedWrap').style.display='none'}
 }
 
 async function checkFilings(){
@@ -440,9 +442,29 @@ async function checkFilings(){
 }
 
 async function viewStaged(){
-  const d=await f(`${API}/api/rebalance/staged`);
-  if(!d||d.status==='none'){alert('No rebalance currently staged. Click "Check for New Filings" first.');return}
-  renderStaged(d);
+  const wrap=document.getElementById('stagedWrap');
+  const cont=document.getElementById('stagedContent');
+  wrap.style.display='block';
+  cont.innerHTML='<div style="color:var(--dim);padding:12px">Loading staged rebalance...</div>';
+
+  try{
+    const resp=await fetch(`${API}/api/rebalance/staged`);
+    const d=await resp.json();
+
+    if(!resp.ok){
+      cont.innerHTML=`<div style="color:var(--red);padding:12px">Error: ${d.error||'Failed to load'}</div>`;
+      return;
+    }
+
+    if(d.status==='none'||(!d.proposal&&!d.new_portfolio)){
+      cont.innerHTML=`<div style="color:var(--dim);padding:12px">No rebalance currently staged.<br><br>Click <strong>"Check for New Filings"</strong> first — if any manager has filed a new 13F since the last check, a rebalance proposal will be generated here for your review.</div>`;
+      return;
+    }
+
+    renderStaged(d);
+  }catch(e){
+    cont.innerHTML=`<div style="color:var(--red);padding:12px">Failed to reach API: ${e.message}<br><br>Make sure <code>filing_monitor.py</code> is in your repo.</div>`;
+  }
 }
 
 function renderStaged(d){
