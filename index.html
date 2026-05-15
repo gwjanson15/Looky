@@ -765,7 +765,7 @@ async function loadHealthCheck(){
     tWrap.style.display='block';
     tBody.innerHTML=d.trades_needed.map(t=>`<tr>
       <td style="color:var(--cyan);font-weight:600">${t.ticker}</td>
-      <td><span style="color:${t.side==='buy'?'var(--green)':'var(--red)';font-weight:600}">${t.side.toUpperCase()}</span></td>
+      <td><span style="color:${t.side==='buy'?'var(--green)':'var(--red)'};font-weight:600">${t.side.toUpperCase()}</span></td>
       <td>${fC(t.amount)}</td>
       <td style="font-size:10px;color:var(--dim)">${t.reason}</td>
     </tr>`).join('');
